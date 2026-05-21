@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "elisity-cli"
+version = "0.1.0"
+description = "Elisity CCC CLI — complete command-line interface to the Elisity Cloud Control Center API"
+readme = "README.md"
+license = {text = "Proprietary"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Elisity", email = "support@elisity.com"},
+]
+dependencies = [
+    "click>=8.1",
+    "requests>=2.31",
+    "tenacity>=8.2",
+    "rich>=13.0",
+    "pyyaml>=6.0",
+    "jmespath>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "pytest-mock>=3.11",
+    "responses>=0.23",
+]
+
+[project.scripts]
+elisity = "elisity_cli.main:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
