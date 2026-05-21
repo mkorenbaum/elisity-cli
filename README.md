@@ -1,10 +1,10 @@
 # Elisity CCC CLI
 
-Command-line interface to the Elisity Cloud Control Center (CCC) API. Provides complete coverage of all 434 CCC API endpoints across topology, policy, devices, connectors, AD/Entra integration, traffic flows, insights, and system operations.
+Command-line interface to the Elisity Cloud Control Center (CCC) API. Provides complete coverage of all 436 CCC API endpoints across topology, policy, devices, connectors, AD/Entra integration, traffic flows, insights, and system operations.
 
 ## Features
 
-- **434 commands** auto-generated from the CCC OpenAPI specification
+- **443 commands** (436 auto-generated from the CCC OpenAPI specification + 7 CLI-native auth/config)
 - **Multi-profile configuration** — manage multiple CCC environments (prod, staging, lab)
 - **4 output formats** — JSON (default), table, YAML, CSV
 - **JMESPath filtering** — reshape and filter output with `-q` expressions
@@ -71,8 +71,8 @@ curl -H "Authorization: Bearer $TOKEN" https://your-ccc.idp01.elisity.io/api/top
 
 | Group | Commands | Description |
 |-------|----------|-------------|
-| `topology` | 116 | Sites, distribution zones, VE groups, VEs, VENs, flow exporters, cloud controllers |
-| `policy` | 116 | Policy sets, policies, policy groups, security profiles, site labels |
+| `topology` | 117 | Sites, distribution zones, VE groups, VEs, VENs, flow exporters, cloud controllers |
+| `policy` | 117 | Policy sets, policies, policy groups, security profiles, site labels |
 | `devices` | 59 | Device CRUD, bulk operations, enrichment, suppression, custom attributes |
 | `ad` | 61 | Active Directory / Entra ID connectors, users, groups, agents |
 | `connectors` | 22 | Custom connector configurations, import/export, connectivity |
@@ -176,7 +176,7 @@ python3 tests/qa_comprehensive.py
 - [Getting Started](docs/getting-started.md) — First-time setup walkthrough
 - [User Guide](docs/user-guide.md) — Workflow-oriented guide with real examples
 - [Configuration Reference](docs/configuration.md) — Profiles, env vars, output formats, JMESPath
-- [Command Reference](docs/command-reference.md) — All 434 commands with descriptions
+- [Command Reference](docs/command-reference.md) — All 443 commands with descriptions
 
 ## License
 

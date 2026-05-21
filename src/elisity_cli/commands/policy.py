@@ -2929,12 +2929,12 @@ def cmd_get_policies_count(ctx, cmd_fmt, cmd_query):
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
-@group.command("get-all-as-nd-json-get")
+@group.command("get-all-as-nd-json-get-2")
 @click.option("--type", "type_param", type=str, default=None, help="type")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
-def cmd_get_all_as_nd_json_get(ctx, type_param, cmd_fmt, cmd_query):
+def cmd_get_all_as_nd_json_get_2(ctx, type_param, cmd_fmt, cmd_query):
     """Get all policy groups"""
     if cmd_fmt:
         ctx.format = cmd_fmt

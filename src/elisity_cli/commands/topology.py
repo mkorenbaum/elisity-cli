@@ -848,14 +848,14 @@ def cmd_get_site(ctx, id, cmd_fmt, cmd_query):
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
-@group.command("update-site-put")
+@group.command("update-site-put-2")
 @click.argument("id")
 @click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
-def cmd_update_site_put(ctx, id, body_data, body_file, cmd_fmt, cmd_query):
+def cmd_update_site_put_2(ctx, id, body_data, body_file, cmd_fmt, cmd_query):
     """Update site."""
     if cmd_fmt:
         ctx.format = cmd_fmt

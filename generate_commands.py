@@ -354,16 +354,22 @@ def group(ctx):
 
 '''
 
-    # Deduplicate command names within group
-    seen_names = {}
+    # Deduplicate command names within group.
+    # On the first collision, append `-<method>`; if that also collides
+    # (3-way or N-way collision), append `-<method>-<n>` with an incrementing
+    # counter starting at 2. Every emitted name is added to seen_names so
+    # downstream collisions can be detected.
+    seen_names = set()
     deduped_commands = []
     for method, path, op, cmd_name in commands:
         if cmd_name in seen_names:
-            # Append method to disambiguate
-            seen_names[cmd_name] += 1
-            cmd_name = f"{cmd_name}-{method.lower()}"
-        else:
-            seen_names[cmd_name] = 1
+            candidate = f"{cmd_name}-{method.lower()}"
+            counter = 2
+            while candidate in seen_names:
+                candidate = f"{cmd_name}-{method.lower()}-{counter}"
+                counter += 1
+            cmd_name = candidate
+        seen_names.add(cmd_name)
         deduped_commands.append((method, path, op, cmd_name))
 
     cmd_blocks = []
