@@ -18,7 +18,8 @@ OUTPUT_DIR = Path(__file__).parent / "src" / "elisity_cli" / "commands"
 TAG_TO_GROUP = {
     # Topology
     "site-controller": "topology",
-    "site-label-controller": "topology",
+    # NOTE: site-label-controller intentionally NOT mapped here.
+    # It is mapped to "policy" below (site labels are a policy concept).
     "distribution-zone-controller": "topology",
     "distribution-zone-controller-v-2": "topology",
     "Virtual Edge Group": "topology",

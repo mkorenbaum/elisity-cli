@@ -1,19 +1,51 @@
 #!/usr/bin/env python3
 """
-Patch generate_commands.py to enforce required query parameters.
+[HISTORICAL — DO NOT RUN AS PART OF THE REGEN WORKFLOW]
 
-Fix 1: When OpenAPI spec says required=True for a query param and there's no default,
-generate Click option with required=True instead of default=None.
+Status (as of 2026-05-21): this script is effectively a no-op.
 
-Usage:
-    cd /home/elisity/Projects/elisity-cli
-    python3 /path/to/fix-required-params-2026-04-07.py
+What it was:
+    A one-time post-generation patch for generate_commands.py. It tried to
+    rewrite the query-param loop so that required OpenAPI parameters
+    became Click ``required=True`` options instead of ``default=None``.
 
-This script:
-1. Reads generate_commands.py
-2. Patches the query param generation logic
-3. Writes the patched file back
-4. Verifies the patch with py_compile
+Why it is no longer needed:
+    The required-param fix is now baked directly into
+    ``generate_commands.py`` (see the ``if preq and pdefault is None:``
+    branch in the query-param generation block). The regex below never
+    finds a literal ``default=None`` in the current query-param ``for``
+    loop because the generator uses an f-string interpolation
+    (``default={default_str}``) rather than a hard-coded string.
+
+What happens if you run it today:
+    1. A ``.bak`` copy of ``generate_commands.py`` is written.
+    2. The regex match fails; the script exits non-zero with a "could
+       not patch" warning (or, in the alternative-patch branch, finds
+       nothing to change and leaves the file untouched).
+    3. No code changes are applied.
+
+Why we keep it:
+    Retained for historical reference and to make the audit trail of the
+    original fix discoverable from the repo. Safe to delete in a future
+    cleanup pass — track removal in a separate ticket so the original
+    patch lineage stays in ``git log``.
+
+Original docstring (for context only):
+    Patch generate_commands.py to enforce required query parameters.
+
+    Fix 1: When OpenAPI spec says required=True for a query param and
+    there's no default, generate Click option with required=True instead
+    of default=None.
+
+    Usage:
+        cd /home/elisity/Projects/elisity-cli
+        python3 /path/to/fix-required-params-2026-04-07.py
+
+    This script:
+    1. Reads generate_commands.py
+    2. Patches the query param generation logic
+    3. Writes the patched file back
+    4. Verifies the patch with py_compile
 """
 
 import re

@@ -14,6 +14,10 @@ elisity --version
 # Expected: elisity-cli, version 0.1.0
 ```
 
+> **Note on regenerating commands:** the required-param fix is baked into
+> `generate_commands.py`. `fix-required-params.py` is retained for historical
+> reference only; do not run it as part of the regen workflow.
+
 ---
 
 ## Step 1: Configuration & Profile Management
@@ -22,7 +26,7 @@ elisity --version
 # 1a. Show current config (secret should be redacted)
 elisity config show
 
-# 1b. List profiles
+# 1b. List profiles (client_secret values must appear as "***")
 elisity config list-profiles
 
 # 1c. Set up a profile for your CCC
@@ -273,6 +277,23 @@ elisity topology get-virtual-edge-nodes -q "{total: totalElements, pages: totalP
 # 11b. Policy groups — paginated
 elisity policy get-policy-groups-json -q "{total: totalElements, pages: totalPages}"
 ```
+
+---
+
+## Appendix: Command Regeneration
+
+When the CCC OpenAPI spec changes, regenerate the auto-generated command modules:
+
+```bash
+cd /home/elisity/Projects/elisity-cli
+python3 generate_commands.py
+```
+
+The required-param enforcement (`required=True` for spec-required query params with
+no default) is baked into `generate_commands.py` itself. **Do not run
+`fix-required-params.py`** — it is retained for historical reference only and is
+a no-op against the current generator (the regex it targets no longer matches
+because the generator uses f-string interpolation for `default=...`).
 
 ---
 

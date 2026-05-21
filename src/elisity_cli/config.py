@@ -12,9 +12,26 @@ import yaml
 DEFAULT_CONFIG_DIR = Path.home() / ".elisity"
 DEFAULT_CONFIG_FILE = DEFAULT_CONFIG_DIR / "config.yaml"
 
+SECRET_MASK = "***"
+SECRET_FIELDS = ("client_secret",)
+
 
 def _ensure_config_dir():
     DEFAULT_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def redact_secrets(profile: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a copy of ``profile`` with sensitive fields masked.
+
+    Used by any code path that may render a profile to the user — both
+    ``config show`` and ``config list-profiles`` route through here so
+    plaintext secrets never reach stdout.
+    """
+    redacted = dict(profile)
+    for field in SECRET_FIELDS:
+        if field in redacted and redacted[field]:
+            redacted[field] = SECRET_MASK
+    return redacted
 
 
 def load_config() -> Dict[str, Any]:
@@ -80,11 +97,11 @@ def use_profile(name: str):
 
 
 def list_profiles() -> Dict[str, Dict]:
-    """Return all profiles with active marker."""
+    """Return all profiles with active marker; secrets are masked."""
     config = load_config()
     active = config.get("active_profile", "default")
     profiles = config.get("profiles", {})
     result = {}
     for name, p in profiles.items():
-        result[name] = {**p, "_active": name == active}
+        result[name] = {**redact_secrets(p), "_active": name == active}
     return result
