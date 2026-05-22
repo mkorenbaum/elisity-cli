@@ -156,7 +156,7 @@ elisity topology get-all-sites
 ### List virtual edges
 
 ```bash
-elisity topology get-all-ve-s-v2
+elisity topology get-virtual-edge
 ```
 
 ### Get device count
@@ -168,7 +168,7 @@ elisity devices get-device-count
 ### List policy sets
 
 ```bash
-elisity policy get-all-policy-sets-as-nd-json
+elisity policy get-all-as-nd-json
 ```
 
 ### Get a specific site by ID

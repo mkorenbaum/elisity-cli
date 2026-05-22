@@ -163,7 +163,7 @@ still using the profile's client credentials.
 The `-p` / `--profile` flag overrides the active profile for a single command:
 
 ```bash
-elisity -p staging topology list-sites-v2
+elisity -p staging topology get-all-sites-v2
 ```
 
 When `-p` is used, the named profile's values are merged on top of the resolved
@@ -256,10 +256,10 @@ Global options must come before the command:
 
 ```bash
 # Correct
-elisity -f table -q '[].name' topology list-sites-v2
+elisity -f table -q '[].name' topology get-all-sites-v2
 
 # Incorrect -- global options after command will not be recognized
-elisity topology list-sites-v2 -f table
+elisity topology get-all-sites-v2 -f table
 ```
 
 ---
@@ -275,7 +275,7 @@ Pretty-printed JSON with 2-space indentation. Suitable for piping to `jq`, stori
 files, or feeding into other tools.
 
 ```bash
-elisity topology list-sites-v2
+elisity topology get-all-sites-v2
 ```
 
 ```json
@@ -298,7 +298,7 @@ Paginated responses (those containing a `content` array) are automatically unwra
 so the table displays the items directly.
 
 ```bash
-elisity -f table topology list-sites-v2
+elisity -f table topology get-all-sites-v2
 ```
 
 ### yaml
@@ -307,7 +307,7 @@ YAML serialization with block style (no flow style). Keys preserve their origina
 order.
 
 ```bash
-elisity -f yaml topology list-sites-v2
+elisity -f yaml topology get-all-sites-v2
 ```
 
 ### csv
@@ -333,7 +333,7 @@ API response before formatting. The full JMESPath specification is supported.
 **Extract a single field from a list:**
 
 ```bash
-elisity -q '[].name' topology list-sites-v2
+elisity -q '[].name' topology get-all-sites-v2
 ```
 
 **Filter by field value:**
@@ -345,19 +345,19 @@ elisity -q "[?status=='ACTIVE']" devices list-devices
 **First N items:**
 
 ```bash
-elisity -q '[0:5]' topology list-sites-v2
+elisity -q '[0:5]' topology get-all-sites-v2
 ```
 
 **Count items:**
 
 ```bash
-elisity -q 'length(@)' topology list-sites-v2
+elisity -q 'length(@)' topology get-all-sites-v2
 ```
 
 **Select specific fields:**
 
 ```bash
-elisity -q '[].{id: id, name: name, status: status}' topology list-sites-v2
+elisity -q '[].{id: id, name: name, status: status}' topology get-all-sites-v2
 ```
 
 **Select fields from a paginated response:**
@@ -369,7 +369,7 @@ elisity -q 'content[].{id: id, name: name}' devices get-devices-view
 **Reshape into a summary object:**
 
 ```bash
-elisity -q '{names: [].name, total: length(@)}' topology list-sites-v2
+elisity -q '{names: [].name, total: length(@)}' topology get-all-sites-v2
 ```
 
 **Nested field access:**
@@ -381,7 +381,7 @@ elisity -q '[].config.vlanId' connectors list-connectors
 **Sort by field:**
 
 ```bash
-elisity -q 'sort_by(@, &name)' topology list-sites-v2
+elisity -q 'sort_by(@, &name)' topology get-all-sites-v2
 ```
 
 **Combine filter and projection:**
@@ -393,13 +393,13 @@ elisity -q "[?status=='ACTIVE'].{name: name, id: id}" devices list-devices
 **Get the first matching item:**
 
 ```bash
-elisity -q "[?name=='HQ'] | [0]" topology list-sites-v2
+elisity -q "[?name=='HQ'] | [0]" topology get-all-sites-v2
 ```
 
 **Check for existence:**
 
 ```bash
-elisity -q "[?description != null].name" topology list-sites-v2
+elisity -q "[?description != null].name" topology get-all-sites-v2
 ```
 
 **Multi-select with computed fields:**
@@ -455,8 +455,8 @@ elisity auth test
 Or use `-p` for one-off commands without switching:
 
 ```bash
-elisity -p staging topology list-sites-v2
-elisity -p prod topology list-sites-v2
+elisity -p staging topology get-all-sites-v2
+elisity -p prod topology get-all-sites-v2
 ```
 
 ### CI/CD Integration
@@ -480,7 +480,7 @@ jobs:
           CCC_CLIENT_SECRET: ${{ secrets.CCC_CLIENT_SECRET }}
         run: |
           elisity auth test
-          elisity policy list-all-policy-sets -f json
+          elisity policy get-all-as-nd-json -f json
 ```
 
 **Shell script example:**
@@ -502,10 +502,10 @@ elisity -f csv devices list-devices > inventory.csv
 ```bash
 # Compare site counts between staging and prod
 echo "Staging sites:"
-elisity -p staging -q 'length(@)' topology list-sites-v2
+elisity -p staging -q 'length(@)' topology get-all-sites-v2
 
 echo "Prod sites:"
-elisity -p prod -q 'length(@)' topology list-sites-v2
+elisity -p prod -q 'length(@)' topology get-all-sites-v2
 ```
 
 ---
@@ -642,5 +642,5 @@ response details:
 
 ```bash
 elisity --debug auth test
-elisity --debug topology list-sites-v2
+elisity --debug topology get-all-sites-v2
 ```

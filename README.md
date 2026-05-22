@@ -56,7 +56,7 @@ elisity topology get-all-sites -q '[].name'
 elisity devices get-devices-view --body '{"page":0,"size":10}'
 
 # List policy sets
-elisity policy get-all-policy-sets-as-nd-json
+elisity policy get-all-as-nd-json
 
 # Get a specific site by ID
 elisity topology get-site-v2 <SITE_ID>
@@ -111,7 +111,7 @@ elisity topology get-all-sites -q '[].name'
 elisity topology get-all-sites -q 'length(@)'
 
 # Filter by field
-elisity topology get-all-ve-s-v2 -q 'content[?status==`ACTIVE`]'
+elisity topology get-virtual-edge -q 'content[?status==`ACTIVE`]'
 
 # Select specific fields
 elisity topology get-all-sites -q '[].{name: name, id: id}'
