@@ -141,9 +141,16 @@ class CCCClient:
     def get(self, endpoint: str, params: Optional[Dict] = None) -> Any:
         resp = self._request("GET", endpoint, params=params)
         resp.raise_for_status()
-        if not resp.text:
+        if not resp.text or not resp.text.strip():
             return {}
-        return resp.json()
+        try:
+            return resp.json()
+        except ValueError:
+            # Some CCC endpoints return text/plain or empty-ish 200 bodies
+            # (e.g. /api/flows/v1/noisedefinition when nothing is defined).
+            # Surface the raw text rather than crashing the parser.
+            logger.warning("Non-JSON 200 from %s; returning raw text", endpoint)
+            return {"raw": resp.text}
 
     def get_ndjson(self, endpoint: str, params: Optional[Dict] = None) -> List[dict]:
         """GET for endpoints that may return NDJSON."""
