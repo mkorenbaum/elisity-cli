@@ -252,6 +252,252 @@ def cmd_zero_trust(
     render(metrics, ctx.format, ctx.query)
 
 
+# ---------------------------------------------------------------------------
+# Additional metric queries discovered via GraphQL introspection of
+# /api/reporting/v1/data. The reporting endpoint exposes 4 metric domains
+# (policyMetrics, identityGraphMetrics, trafficVectorsMetrics, topologyMetrics)
+# — these commands wrap the most operationally useful queries for tenant
+# summary, posture scoring, and per-site dashboards.
+# ---------------------------------------------------------------------------
+
+
+_AGGREGATE_SCORE_QUERY = """query AggregateEnforcementScore($dt: [DateTime!]!, $site: [Site!]) {
+  policyMetrics {
+    aggregatePolicyEnforcementScore(dateTime: $dt, site: $site) {
+      ... on FloatMetricValue {
+        value
+        dateTime
+        __typename
+      }
+    }
+  }
+}"""
+
+_POLICY_SET_SCORE_QUERY = """query PolicySetEnforcementScore($id: UUID!, $dt: [DateTime!]!, $site: [Site!]) {
+  policyMetrics {
+    policySetEnforcementScore(policySetId: $id, dateTime: $dt, site: $site) {
+      ... on FloatMetricValue {
+        value
+        dateTime
+        __typename
+      }
+    }
+  }
+}"""
+
+_DEVICE_COUNT_QUERY = """query DeviceCount($dt: DateTimeSelectionInput!, $online: Boolean, $site: [Site!]) {
+  identityGraphMetrics {
+    devices {
+      count(dateTime: $dt, online: $online, site: $site) {
+        dateTime
+        online
+        value
+      }
+    }
+  }
+}"""
+
+_SITE_KPIS_QUERY = """query SiteKPIs($dt: DateTime!, $site: [Site!]) {
+  topologyMetrics {
+    siteKPIs(dateTime: $dt, site: $site) {
+      dateTime
+      siteName
+      onlineDevices
+      virtualEdgeNodes
+      localPolicyGroups
+      simulatedPolicies
+      activatedPolicies
+      policyEnforcementScore
+    }
+  }
+}"""
+
+
+@group.command("get-aggregate-enforcement-score")
+@click.option(
+    "--snapshot",
+    "snapshots",
+    multiple=True,
+    default=None,
+    help="ISO-8601 snapshot time (top-of-hour UTC). Repeatable. Default: previous full hour.",
+)
+@click.option(
+    "--site",
+    "sites",
+    multiple=True,
+    default=None,
+    help="Filter to one or more site names. Repeatable.",
+)
+@pass_context
+def cmd_aggregate_score(ctx, snapshots, sites):
+    """Tenant-wide Zero Trust enforcement score (single number per snapshot).
+
+    This is the actual "Zero Trust score" headline number that the CCC UI
+    shows. Returns a list of FloatMetricValue, one per requested snapshot
+    (most users want a single recent snapshot — that's the default).
+
+    Examples:
+      elisity reporting get-aggregate-enforcement-score
+      elisity reporting get-aggregate-enforcement-score --snapshot 2026-05-22T11:00:00.000Z
+      elisity reporting get-aggregate-enforcement-score --site Boston --site CORK
+    """
+    snaps = list(snapshots) if snapshots else [_default_snapshot()]
+    variables = {"dt": snaps}
+    if sites:
+        variables["site"] = _lookup_sites(ctx, list(sites))
+
+    result = _post_graphql(ctx, "AggregateEnforcementScore", variables, _AGGREGATE_SCORE_QUERY)
+    _check_errors(result)
+    data = (
+        result.get("data", {}).get("policyMetrics", {}).get("aggregatePolicyEnforcementScore")
+        or []
+    )
+    render(data, ctx.format, ctx.query)
+
+
+@group.command("get-policy-set-enforcement-score")
+@click.argument("policy_set_id")
+@click.option(
+    "--snapshot",
+    "snapshots",
+    multiple=True,
+    default=None,
+    help="ISO-8601 snapshot time (top-of-hour UTC). Repeatable. Default: previous full hour.",
+)
+@click.option(
+    "--site",
+    "sites",
+    multiple=True,
+    default=None,
+    help="Filter to one or more site names. Repeatable.",
+)
+@pass_context
+def cmd_policy_set_score(ctx, policy_set_id, snapshots, sites):
+    """Per-policy-set enforcement score (GraphQL — works where the REST
+    `policy get-enforcement-score` returns 404).
+
+    Examples:
+      # Get every policy set ID
+      elisity policy get-all-as-nd-json -q '[].{id: id, name: name}'
+
+      # Pull score for one
+      elisity reporting get-policy-set-enforcement-score <POLICY_SET_ID>
+
+      # Fan out across all policy sets
+      for id in $(elisity policy get-all-as-nd-json -q '[].id' -f csv | tail -n +2); do
+        echo "=== $id ==="
+        elisity reporting get-policy-set-enforcement-score "$id"
+      done
+    """
+    snaps = list(snapshots) if snapshots else [_default_snapshot()]
+    variables = {"id": policy_set_id, "dt": snaps}
+    if sites:
+        variables["site"] = _lookup_sites(ctx, list(sites))
+
+    result = _post_graphql(ctx, "PolicySetEnforcementScore", variables, _POLICY_SET_SCORE_QUERY)
+    _check_errors(result)
+    data = (
+        result.get("data", {}).get("policyMetrics", {}).get("policySetEnforcementScore")
+        or []
+    )
+    render(data, ctx.format, ctx.query)
+
+
+@group.command("get-device-count")
+@click.option(
+    "--snapshot",
+    "snapshots",
+    multiple=True,
+    default=None,
+    help="ISO-8601 snapshot time (top-of-hour UTC). Repeatable. Default: previous full hour.",
+)
+@click.option(
+    "--online",
+    type=click.Choice(["true", "false"]),
+    default=None,
+    help="Filter to online=true or online=false only. Omit to get both as separate rows.",
+)
+@click.option(
+    "--site",
+    "sites",
+    multiple=True,
+    default=None,
+    help="Filter to one or more site names. Repeatable.",
+)
+@pass_context
+def cmd_device_count(ctx, snapshots, online, sites):
+    """Device count from CCC's metrics snapshot — broken out by online state.
+
+    Returns one row per (snapshot, online-state). With no --online filter,
+    you get two rows per snapshot (online=true, online=false) — useful for
+    tenant-wide online/offline counts in a single call without paginating
+    through devices/view.
+
+    Examples:
+      # Online + offline counts for the latest snapshot
+      elisity reporting get-device-count
+
+      # Just online devices
+      elisity reporting get-device-count --online true
+
+      # Per site
+      elisity reporting get-device-count --site Boston
+      elisity reporting get-device-count --site Boston --site CORK
+    """
+    snaps = list(snapshots) if snapshots else [_default_snapshot()]
+    variables = {"dt": {"dateTimes": snaps}}
+    if online is not None:
+        variables["online"] = (online == "true")
+    if sites:
+        variables["site"] = _lookup_sites(ctx, list(sites))
+
+    result = _post_graphql(ctx, "DeviceCount", variables, _DEVICE_COUNT_QUERY)
+    _check_errors(result)
+    data = (
+        result.get("data", {}).get("identityGraphMetrics", {}).get("devices", {}).get("count")
+        or []
+    )
+    render(data, ctx.format, ctx.query)
+
+
+@group.command("get-site-kpis")
+@click.option(
+    "--snapshot",
+    "snapshot",
+    default=None,
+    help="ISO-8601 snapshot time (top-of-hour UTC). Default: previous full hour.",
+)
+@click.option(
+    "--site",
+    "sites",
+    multiple=True,
+    default=None,
+    help="Filter to one or more site names. Repeatable.",
+)
+@pass_context
+def cmd_site_kpis(ctx, snapshot, sites):
+    """Per-site KPI dashboard — devices, VENs, policy counts, enforcement score.
+
+    Returns one row per site with: onlineDevices, virtualEdgeNodes,
+    localPolicyGroups, simulatedPolicies, activatedPolicies,
+    policyEnforcementScore. This is the data behind CCC's per-site
+    dashboard cards — the single best query for a tenant summary.
+
+    Examples:
+      elisity -f table reporting get-site-kpis
+      elisity reporting get-site-kpis --site Boston
+    """
+    snap = snapshot or _default_snapshot()
+    variables = {"dt": snap}
+    if sites:
+        variables["site"] = _lookup_sites(ctx, list(sites))
+
+    result = _post_graphql(ctx, "SiteKPIs", variables, _SITE_KPIS_QUERY)
+    _check_errors(result)
+    data = result.get("data", {}).get("topologyMetrics", {}).get("siteKPIs") or []
+    render(data, ctx.format, ctx.query)
+
+
 @group.command("list-snapshots")
 @click.option(
     "--hours",

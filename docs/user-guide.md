@@ -1496,20 +1496,69 @@ response. The response body almost always contains the operative error message.
 
 ### 9. Zero Trust / posture scores
 
-The **primary** Zero Trust score data — the per-policy-group device and
-policy coverage that drives the CCC dashboard Zero Trust page, the malware
-lateral movement page, and per-device risk attribution — lives in a
-GraphQL endpoint at `POST /api/reporting/v1/data`. The OpenAPI spec
-**doesn't include this endpoint** (GraphQL is a different surface), so the
-CLI ships a hand-coded `reporting` group that wraps the queries.
+The Zero Trust score data — what powers the CCC dashboard Zero Trust page,
+the malware lateral movement page, and per-device risk views — lives in a
+GraphQL endpoint at `POST /api/reporting/v1/data`. **This endpoint is not
+in the OpenAPI spec** (GraphQL is a different API surface), so the CLI ships
+a hand-coded `reporting` group that wraps the most useful queries.
+
+GraphQL introspection on the endpoint is open; the schema exposes four
+metric domains (`policyMetrics`, `identityGraphMetrics`,
+`trafficVectorsMetrics`, `topologyMetrics`). The commands below cover the
+operationally important queries.
+
+#### Quick answers
+
+```bash
+# THE tenant-wide Zero Trust score — single number from the headline metric
+elisity reporting get-aggregate-enforcement-score
+
+# Per-site dashboard summary (devices, VENs, policy counts, score)
+elisity -f table reporting get-site-kpis
+
+# Tenant-wide device counts, broken out by online status
+elisity reporting get-device-count
+
+# Per-policy-set enforcement score (real GraphQL value — the REST
+# `policy get-enforcement-score` 404s on most tenants)
+elisity reporting get-policy-set-enforcement-score <POLICY_SET_ID>
+
+# The original per-policy-group ZT row data (deviceCoverage / policyCoverage,
+# threat-vector metrics, port exposure)
+elisity reporting get-zero-trust-metrics
+
+# Find which snapshot times have data
+elisity reporting list-snapshots
+```
+
+#### Worked example: tenant summary from a single call
+
+```bash
+elisity -f table reporting get-site-kpis
+```
+
+```text
+┌──────────┬────────────────┬────────────────┬─────────────────┬──────────────────┬──────────────────┬─────────────────────────┐
+│ siteName │ onlineDevices  │ virtualEdgeNodes│ localPolicyGroups│ simulatedPolicies│ activatedPolicies│ policyEnforcementScore  │
+├──────────┼────────────────┼────────────────┼─────────────────┼──────────────────┼──────────────────┼─────────────────────────┤
+│ Boston   │ 143            │ 1              │ 7               │ 0                │ 81               │ 100.0                   │
+│ CORK     │ 1071           │ 6              │ 9               │ 3                │ 245              │ 84.9                    │
+│ Default  │ 142            │ 4              │ 0               │ 2                │ 29               │ 2.7                     │
+│ Hospital │ 51             │ 2              │ 0               │ 62               │ 2                │ 8.2                     │
+└──────────┴────────────────┴────────────────┴─────────────────┴──────────────────┴──────────────────┴─────────────────────────┘
+```
+
+One call. Per-site devices, VEN count, policy group count, policies, and
+enforcement score. The same data the CCC UI's per-site cards display.
+
+#### Per-policy-group detail
+
+For the richer per-policy-group rows that the original Zero Trust page
+shows (with threat-vector breakdowns), use `get-zero-trust-metrics`:
 
 ```bash
 # Pull all Zero Trust scores for the latest available snapshot
 elisity reporting get-zero-trust-metrics
-
-# Find what snapshot times have data on this tenant (snapshots are
-# point-in-time, generated at top-of-hour UTC but not for every hour)
-elisity reporting list-snapshots
 
 # Pull a specific snapshot
 elisity reporting get-zero-trust-metrics --snapshot 2026-05-22T11:00:00.000Z
