@@ -498,6 +498,501 @@ def cmd_site_kpis(ctx, snapshot, sites):
     render(data, ctx.format, ctx.query)
 
 
+# ---------------------------------------------------------------------------
+# Additional GraphQL queries — round 2. Wraps every remaining /reporting/v1/data
+# query the CCC dashboard uses, derived via Apollo-style introspection.
+# ---------------------------------------------------------------------------
+
+_POLICY_COUNT_QUERY = """query PolicyCount($dt: DateTimeSelectionInput!, $monitorMode: MonitorMode, $site: [Site!]) {
+  policyMetrics {
+    count(dateTime: $dt, monitorMode: $monitorMode, site: $site) {
+      dateTime
+      monitorMode
+      value
+    }
+  }
+}"""
+
+_POLICY_COUNT_NEEDED_QUERY = """query PolicyCountNeeded($dt: [DateTime!]!, $site: [Site!]) {
+  policyMetrics {
+    countNeeded(dateTime: $dt, site: $site) {
+      dateTime
+      value
+    }
+  }
+}"""
+
+_POLICY_GROUPS_COUNT_QUERY = """query PolicyGroupsCount($dt: [DateTime!]!, $local: Boolean, $site: [Site!]) {
+  policyMetrics {
+    policyGroups {
+      count(dateTime: $dt, local: $local, site: $site) {
+        dateTime
+        value
+      }
+    }
+  }
+}"""
+
+_DEVICES_BY_CONNECTOR_QUERY = """query DevicesByConnector($dt: DateTime!, $site: [Site!]) {
+  identityGraphMetrics {
+    devices {
+      countByConnector(dateTime: $dt, site: $site) {
+        connector
+        connectorName
+        value
+      }
+    }
+  }
+}"""
+
+_ACTIVE_SITES_COUNT_QUERY = """query ActiveSitesCount($dt: [DateTime!]!, $site: [Site!]) {
+  topologyMetrics {
+    activeSites {
+      count(dateTime: $dt, site: $site) {
+        dateTime
+        value
+      }
+    }
+  }
+}"""
+
+_ACTIVE_SITES_WAP_COUNT_QUERY = """query ActiveSitesWithActivatedPoliciesCount($dt: [DateTime!]!, $site: [Site!]) {
+  topologyMetrics {
+    activeSitesWithActivatedPolicies {
+      count(dateTime: $dt, site: $site) {
+        dateTime
+        value
+      }
+    }
+  }
+}"""
+
+_VIRTUAL_EDGES_COUNT_QUERY = """query VirtualEdgesCount($dt: DateTimeSelectionInput!, $site: [Site!]) {
+  topologyMetrics {
+    virtualEdges {
+      count(dateTime: $dt, site: $site) {
+        dateTime
+        value
+      }
+    }
+  }
+}"""
+
+_VIRTUAL_EDGE_NODES_COUNT_QUERY = """query VirtualEdgeNodesCount($dt: DateTimeSelectionInput!, $model: [String!], $site: [Site!]) {
+  topologyMetrics {
+    virtualEdgeNodes {
+      count(dateTime: $dt, model: $model, site: $site) {
+        dateTime
+        model
+        type
+        value
+      }
+    }
+  }
+}"""
+
+_TARGET_SITES_QUERY = """query TargetSites($dt: DateTime!) {
+  topologyMetrics {
+    targetSites(dateTime: $dt) {
+      type
+      value
+      startDate
+      endDate
+    }
+  }
+}"""
+
+_TRAFFIC_VECTORS_COUNT_QUERY = """query TrafficVectorsCount($dt: DateTimeWindow!, $kind: TrafficVectorKind!, $policyStatus: PolicyStatus, $site: [Site!]) {
+  trafficVectorsMetrics {
+    count(dateTime: $dt, kind: $kind, policyStatus: $policyStatus, site: $site) {
+      fromDateTime
+      toDateTime
+      value
+    }
+  }
+}"""
+
+_TRAFFIC_VECTORS_BY_PG_QUERY = """query TrafficVectorsByPG($dt: DateTimeWindow!, $kind: TrafficVectorKind!, $top: Int!, $site: [Site!]) {
+  trafficVectorsMetrics {
+    countByPG(dateTime: $dt, kind: $kind, top: $top, site: $site) {
+      pgNumericId
+      pgDisplayName
+      kind
+      value
+    }
+  }
+}"""
+
+_TRAFFIC_VECTORS_BY_IP_QUERY = """query TrafficVectorsByIP($dt: DateTimeWindow!, $kind: TrafficVectorKind!, $top: Int!, $site: [Site!]) {
+  trafficVectorsMetrics {
+    countByIP(dateTime: $dt, kind: $kind, top: $top, site: $site) {
+      ip
+      kind
+      value
+    }
+  }
+}"""
+
+
+def _maybe_sites(ctx, sites_arg):
+    """Return the resolved [Site!] list or None to omit the variable."""
+    return _lookup_sites(ctx, list(sites_arg)) if sites_arg else None
+
+
+def _default_window(hours_back: int = 24, step_hours: int = 1) -> dict:
+    """A DateTimeWindow covering the last <hours_back> hours."""
+    now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    return {
+        "fromDateTime": (now - timedelta(hours=hours_back)).strftime(
+            "%Y-%m-%dT%H:%M:%S.000Z"
+        ),
+        "toDateTime": now.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+        "stepHours": step_hours,
+    }
+
+
+# --- Policy metric counts -------------------------------------------------
+
+
+@group.command("get-policy-count")
+@click.option("--snapshot", "snapshots", multiple=True, default=None,
+              help="ISO-8601 snapshot time. Repeatable. Default: previous full hour.")
+@click.option("--monitor-mode",
+              type=click.Choice(["MONITOR_ONLY", "MONITOR_AND_ENFORCE", "MONITOR_EXTERNAL"]),
+              default=None, help="Optional MonitorMode filter.")
+@click.option("--site", "sites", multiple=True, default=None,
+              help="Filter to one or more site names. Repeatable.")
+@pass_context
+def cmd_policy_count(ctx, snapshots, monitor_mode, sites):
+    """Policy counts by MonitorMode for a snapshot.
+
+    Returns rows of {dateTime, monitorMode, value}.
+    """
+    snaps = list(snapshots) if snapshots else [_default_snapshot()]
+    variables = {"dt": {"dateTimes": snaps}}
+    if monitor_mode:
+        variables["monitorMode"] = monitor_mode
+    sl = _maybe_sites(ctx, sites)
+    if sl is not None:
+        variables["site"] = sl
+    result = _post_graphql(ctx, "PolicyCount", variables, _POLICY_COUNT_QUERY)
+    _check_errors(result)
+    render(result.get("data", {}).get("policyMetrics", {}).get("count") or [],
+           ctx.format, ctx.query)
+
+
+@group.command("get-policy-count-needed")
+@click.option("--snapshot", "snapshots", multiple=True, default=None,
+              help="ISO-8601 snapshot time. Repeatable. Default: previous full hour.")
+@click.option("--site", "sites", multiple=True, default=None,
+              help="Filter to one or more site names. Repeatable.")
+@pass_context
+def cmd_policy_count_needed(ctx, snapshots, sites):
+    """Policies needed for full policy-group coverage.
+
+    Surfaces the count of *additional* policies CCC thinks would be needed
+    to fully cover the policy groups at this snapshot.
+    """
+    snaps = list(snapshots) if snapshots else [_default_snapshot()]
+    variables = {"dt": snaps}
+    sl = _maybe_sites(ctx, sites)
+    if sl is not None:
+        variables["site"] = sl
+    result = _post_graphql(ctx, "PolicyCountNeeded", variables, _POLICY_COUNT_NEEDED_QUERY)
+    _check_errors(result)
+    render(result.get("data", {}).get("policyMetrics", {}).get("countNeeded") or [],
+           ctx.format, ctx.query)
+
+
+@group.command("get-policy-groups-count")
+@click.option("--snapshot", "snapshots", multiple=True, default=None,
+              help="ISO-8601 snapshot time. Repeatable. Default: previous full hour.")
+@click.option("--local/--no-local", "local", default=None,
+              help="Filter to local=true or local=false policy groups only.")
+@click.option("--site", "sites", multiple=True, default=None,
+              help="Filter to one or more site names. Repeatable.")
+@pass_context
+def cmd_policy_groups_count(ctx, snapshots, local, sites):
+    """Policy group counts, optionally filtered by local vs global."""
+    snaps = list(snapshots) if snapshots else [_default_snapshot()]
+    variables = {"dt": snaps}
+    if local is not None:
+        variables["local"] = bool(local)
+    sl = _maybe_sites(ctx, sites)
+    if sl is not None:
+        variables["site"] = sl
+    result = _post_graphql(ctx, "PolicyGroupsCount", variables, _POLICY_GROUPS_COUNT_QUERY)
+    _check_errors(result)
+    render(result.get("data", {}).get("policyMetrics", {}).get("policyGroups", {}).get("count") or [],
+           ctx.format, ctx.query)
+
+
+# --- Identity graph (devices) ---------------------------------------------
+
+
+@group.command("get-devices-by-connector")
+@click.option("--snapshot", default=None,
+              help="ISO-8601 snapshot time. Default: previous full hour. Only one allowed.")
+@click.option("--site", "sites", multiple=True, default=None,
+              help="Filter to one or more site names. Repeatable.")
+@pass_context
+def cmd_devices_by_connector(ctx, snapshot, sites):
+    """Device counts grouped by connector.
+
+    Returns one row per connector with {connector, connectorName, value}.
+    Useful for answering "which connector contributes the most devices?".
+    """
+    snap = snapshot or _default_snapshot()
+    variables = {"dt": snap}
+    sl = _maybe_sites(ctx, sites)
+    if sl is not None:
+        variables["site"] = sl
+    result = _post_graphql(ctx, "DevicesByConnector", variables, _DEVICES_BY_CONNECTOR_QUERY)
+    _check_errors(result)
+    render(result.get("data", {}).get("identityGraphMetrics", {}).get("devices", {}).get("countByConnector") or [],
+           ctx.format, ctx.query)
+
+
+# --- Topology counts ------------------------------------------------------
+
+
+@group.command("get-active-sites-count")
+@click.option("--snapshot", "snapshots", multiple=True, default=None,
+              help="ISO-8601 snapshot time. Repeatable. Default: previous full hour.")
+@click.option("--site", "sites", multiple=True, default=None,
+              help="Filter to one or more site names. Repeatable.")
+@pass_context
+def cmd_active_sites_count(ctx, snapshots, sites):
+    """Count of active sites at the given snapshots."""
+    snaps = list(snapshots) if snapshots else [_default_snapshot()]
+    variables = {"dt": snaps}
+    sl = _maybe_sites(ctx, sites)
+    if sl is not None:
+        variables["site"] = sl
+    result = _post_graphql(ctx, "ActiveSitesCount", variables, _ACTIVE_SITES_COUNT_QUERY)
+    _check_errors(result)
+    render(result.get("data", {}).get("topologyMetrics", {}).get("activeSites", {}).get("count") or [],
+           ctx.format, ctx.query)
+
+
+@group.command("get-active-sites-with-activated-policies-count")
+@click.option("--snapshot", "snapshots", multiple=True, default=None,
+              help="ISO-8601 snapshot time. Repeatable. Default: previous full hour.")
+@click.option("--site", "sites", multiple=True, default=None,
+              help="Filter to one or more site names. Repeatable.")
+@pass_context
+def cmd_active_sites_wap_count(ctx, snapshots, sites):
+    """Count of sites with activated policies at the given snapshots.
+
+    Difference vs `get-active-sites-count`: this only counts sites that
+    have at least one activated policy.
+    """
+    snaps = list(snapshots) if snapshots else [_default_snapshot()]
+    variables = {"dt": snaps}
+    sl = _maybe_sites(ctx, sites)
+    if sl is not None:
+        variables["site"] = sl
+    result = _post_graphql(ctx, "ActiveSitesWithActivatedPoliciesCount", variables,
+                           _ACTIVE_SITES_WAP_COUNT_QUERY)
+    _check_errors(result)
+    render(result.get("data", {}).get("topologyMetrics", {})
+                  .get("activeSitesWithActivatedPolicies", {}).get("count") or [],
+           ctx.format, ctx.query)
+
+
+@group.command("get-virtual-edges-count")
+@click.option("--snapshot", "snapshots", multiple=True, default=None,
+              help="ISO-8601 snapshot time. Repeatable. Default: previous full hour.")
+@click.option("--site", "sites", multiple=True, default=None,
+              help="Filter to one or more site names. Repeatable.")
+@pass_context
+def cmd_virtual_edges_count(ctx, snapshots, sites):
+    """Virtual Edge counts at the given snapshots."""
+    snaps = list(snapshots) if snapshots else [_default_snapshot()]
+    variables = {"dt": {"dateTimes": snaps}}
+    sl = _maybe_sites(ctx, sites)
+    if sl is not None:
+        variables["site"] = sl
+    result = _post_graphql(ctx, "VirtualEdgesCount", variables, _VIRTUAL_EDGES_COUNT_QUERY)
+    _check_errors(result)
+    render(result.get("data", {}).get("topologyMetrics", {}).get("virtualEdges", {}).get("count") or [],
+           ctx.format, ctx.query)
+
+
+@group.command("get-virtual-edge-nodes-count")
+@click.option("--snapshot", "snapshots", multiple=True, default=None,
+              help="ISO-8601 snapshot time. Repeatable. Default: previous full hour.")
+@click.option("--model", "models", multiple=True, default=None,
+              help="Filter to specific VEN model string(s), e.g. 'C9300-48T'. Repeatable.")
+@click.option("--site", "sites", multiple=True, default=None,
+              help="Filter to one or more site names. Repeatable.")
+@pass_context
+def cmd_virtual_edge_nodes_count(ctx, snapshots, models, sites):
+    """Virtual Edge Node counts at the given snapshots.
+
+    Returns rows with {dateTime, model, type, value} — group by model in
+    the result to answer "VENs per vendor/model".
+
+    Examples:
+      elisity -f table reporting get-virtual-edge-nodes-count
+      elisity reporting get-virtual-edge-nodes-count --model C9300-48T
+      elisity reporting get-virtual-edge-nodes-count --model C9300-48T --model C9300-24T
+    """
+    snaps = list(snapshots) if snapshots else [_default_snapshot()]
+    variables = {"dt": {"dateTimes": snaps}}
+    if models:
+        variables["model"] = list(models)
+    sl = _maybe_sites(ctx, sites)
+    if sl is not None:
+        variables["site"] = sl
+    result = _post_graphql(ctx, "VirtualEdgeNodesCount", variables, _VIRTUAL_EDGE_NODES_COUNT_QUERY)
+    _check_errors(result)
+    render(result.get("data", {}).get("topologyMetrics", {}).get("virtualEdgeNodes", {}).get("count") or [],
+           ctx.format, ctx.query)
+
+
+@group.command("get-target-sites")
+@click.option("--snapshot", default=None,
+              help="ISO-8601 snapshot time. Default: previous full hour.")
+@pass_context
+def cmd_target_sites(ctx, snapshot):
+    """Target-sites data (site activation targets).
+
+    Returns rows of {type, value, startDate, endDate}. NOTE: this endpoint
+    has been observed to return `INTERNAL_ERROR` on tenants without
+    target-site configuration — that's a CCC-side condition, not a CLI bug.
+    """
+    snap = snapshot or _default_snapshot()
+    variables = {"dt": snap}
+    result = _post_graphql(ctx, "TargetSites", variables, _TARGET_SITES_QUERY)
+    _check_errors(result)
+    render(result.get("data", {}).get("topologyMetrics", {}).get("targetSites") or [],
+           ctx.format, ctx.query)
+
+
+# --- Traffic vectors ------------------------------------------------------
+
+
+@group.command("get-traffic-count")
+@click.option("--kind", type=click.Choice(["ALL", "ALLOWED", "DENIED"]), default="ALL",
+              help="Traffic vector kind (default ALL).")
+@click.option("--policy-status",
+              type=click.Choice(["ACTIVE", "SIMULATION", "NO_POLICY"]), default=None,
+              help="Optional PolicyStatus filter.")
+@click.option("--from-time", "from_time", default=None,
+              help="ISO-8601 start (UTC). Default: 24h ago top-of-hour.")
+@click.option("--to-time", "to_time", default=None,
+              help="ISO-8601 end (UTC). Default: now top-of-hour.")
+@click.option("--step-hours", type=int, default=1,
+              help="Window step in hours (default 1).")
+@click.option("--site", "sites", multiple=True, default=None,
+              help="Filter to one or more site names. Repeatable.")
+@pass_context
+def cmd_traffic_count(ctx, kind, policy_status, from_time, to_time, step_hours, sites):
+    """Total traffic vector count over a time window.
+
+    Default window is the last 24 hours. Returns a single MetricWindow
+    object (not a list) — fromDateTime, toDateTime, value.
+
+    Examples:
+      elisity reporting get-traffic-count --kind DENIED
+      elisity reporting get-traffic-count --kind ALL --site CORK
+    """
+    if from_time or to_time:
+        window = _default_window()
+        if from_time: window["fromDateTime"] = from_time
+        if to_time:   window["toDateTime"] = to_time
+        window["stepHours"] = step_hours
+    else:
+        window = _default_window(step_hours=step_hours)
+
+    variables = {"dt": window, "kind": kind}
+    if policy_status:
+        variables["policyStatus"] = policy_status
+    sl = _maybe_sites(ctx, sites)
+    if sl is not None:
+        variables["site"] = sl
+
+    result = _post_graphql(ctx, "TrafficVectorsCount", variables, _TRAFFIC_VECTORS_COUNT_QUERY)
+    _check_errors(result)
+    render(result.get("data", {}).get("trafficVectorsMetrics", {}).get("count") or {},
+           ctx.format, ctx.query)
+
+
+@group.command("get-top-policy-groups-by-traffic")
+@click.option("--kind", type=click.Choice(["ALL", "ALLOWED", "DENIED"]), default="ALL",
+              help="Traffic vector kind (default ALL).")
+@click.option("--top", type=int, default=10,
+              help="How many top policy groups to return (default 10).")
+@click.option("--from-time", "from_time", default=None,
+              help="ISO-8601 start (UTC). Default: 24h ago top-of-hour.")
+@click.option("--to-time", "to_time", default=None,
+              help="ISO-8601 end (UTC). Default: now top-of-hour.")
+@click.option("--step-hours", type=int, default=1,
+              help="Window step in hours (default 1).")
+@click.option("--site", "sites", multiple=True, default=None,
+              help="Filter to one or more site names. Repeatable.")
+@pass_context
+def cmd_top_pgs(ctx, kind, top, from_time, to_time, step_hours, sites):
+    """Top N policy groups by traffic-vector count over a time window.
+
+    Returns rows of {pgNumericId, pgDisplayName, kind, value}.
+
+    Example:
+      elisity -f table reporting get-top-policy-groups-by-traffic --kind DENIED --top 5
+    """
+    window = _default_window(step_hours=step_hours)
+    if from_time: window["fromDateTime"] = from_time
+    if to_time:   window["toDateTime"] = to_time
+
+    variables = {"dt": window, "kind": kind, "top": top}
+    sl = _maybe_sites(ctx, sites)
+    if sl is not None:
+        variables["site"] = sl
+
+    result = _post_graphql(ctx, "TrafficVectorsByPG", variables, _TRAFFIC_VECTORS_BY_PG_QUERY)
+    _check_errors(result)
+    render(result.get("data", {}).get("trafficVectorsMetrics", {}).get("countByPG") or [],
+           ctx.format, ctx.query)
+
+
+@group.command("get-top-ips-by-traffic")
+@click.option("--kind", type=click.Choice(["ALL", "ALLOWED", "DENIED"]), default="ALL",
+              help="Traffic vector kind (default ALL).")
+@click.option("--top", type=int, default=10,
+              help="How many top IPs to return (default 10).")
+@click.option("--from-time", "from_time", default=None,
+              help="ISO-8601 start (UTC). Default: 24h ago top-of-hour.")
+@click.option("--to-time", "to_time", default=None,
+              help="ISO-8601 end (UTC). Default: now top-of-hour.")
+@click.option("--step-hours", type=int, default=1,
+              help="Window step in hours (default 1).")
+@click.option("--site", "sites", multiple=True, default=None,
+              help="Filter to one or more site names. Repeatable.")
+@pass_context
+def cmd_top_ips(ctx, kind, top, from_time, to_time, step_hours, sites):
+    """Top N IPs by traffic-vector count over a time window.
+
+    Returns rows of {ip, kind, value}.
+
+    Example:
+      elisity -f table reporting get-top-ips-by-traffic --kind DENIED --top 10
+    """
+    window = _default_window(step_hours=step_hours)
+    if from_time: window["fromDateTime"] = from_time
+    if to_time:   window["toDateTime"] = to_time
+
+    variables = {"dt": window, "kind": kind, "top": top}
+    sl = _maybe_sites(ctx, sites)
+    if sl is not None:
+        variables["site"] = sl
+
+    result = _post_graphql(ctx, "TrafficVectorsByIP", variables, _TRAFFIC_VECTORS_BY_IP_QUERY)
+    _check_errors(result)
+    render(result.get("data", {}).get("trafficVectorsMetrics", {}).get("countByIP") or [],
+           ctx.format, ctx.query)
+
+
 @group.command("list-snapshots")
 @click.option(
     "--hours",
