@@ -23,7 +23,7 @@ def cli(ctx, fmt, query, debug, profile):
     """Elisity CCC CLI — command-line interface to the Cloud Control Center API.
 
     Manages topology, policies, devices, connectors, AD/Entra integration,
-    traffic flows, and system operations — 443 commands across 10 groups.
+    traffic flows, and system operations — 462 commands across 11 groups.
 
     Configuration:
       Set CCC_BASE_URL, CCC_CLIENT_ID, CCC_CLIENT_SECRET env vars, or

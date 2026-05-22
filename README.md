@@ -2,16 +2,17 @@
 
 [![tests](https://github.com/mkorenbaum/elisity-cli/actions/workflows/test.yml/badge.svg)](https://github.com/mkorenbaum/elisity-cli/actions/workflows/test.yml)
 
-Command-line interface to the Elisity Cloud Control Center (CCC) API. Provides complete coverage of all 436 CCC API endpoints across topology, policy, devices, connectors, AD/Entra integration, traffic flows, insights, and system operations.
+Command-line interface to the Elisity Cloud Control Center (CCC) API. Provides complete coverage of the CCC API surface — all 436 REST endpoints from the OpenAPI spec, plus 19 hand-coded GraphQL commands for the `/api/reporting/v1/data` endpoint (Zero Trust scores, threat vectors, per-site KPIs, traffic vectors) that the OpenAPI spec doesn't include.
 
 ## Features
 
-- **443 commands** (436 auto-generated from the CCC OpenAPI specification + 7 CLI-native auth/config)
+- **462 commands** total (436 auto-generated from the CCC OpenAPI spec + 19 hand-coded GraphQL reporting commands + 7 CLI-native auth/config)
 - **Multi-profile configuration** — manage multiple CCC environments (prod, staging, lab)
 - **4 output formats** — JSON (default), table, YAML, CSV
 - **JMESPath filtering** — reshape and filter output with `-q` expressions
 - **OAuth2 authentication** — client_credentials grant with auto-refresh
 - **NDJSON support** — transparent parsing of newline-delimited JSON endpoints
+- **GraphQL reporting** — `reporting` group wraps the CCC dashboard's GraphQL queries (Zero Trust scores, site KPIs, threat vectors, traffic-by-PG/IP)
 - **Destructive-op safety** — DELETE commands require `--confirm`
 - **Retry with backoff** — automatic retry on connection errors and timeouts
 
@@ -60,7 +61,7 @@ elisity topology get-all-sites -f table
 # Extract just site names
 elisity topology get-all-sites -q '[].name'
 
-# View devices (paginated)
+# View devices (paginated — note nested 'pageable' wrapper)
 elisity devices get-devices-view --body '{"pageable":{"page":0,"size":10}}'
 
 # List policy sets
@@ -71,6 +72,12 @@ elisity topology get-site-v2 <SITE_ID>
 
 # Delete a site (requires confirmation)
 elisity topology delete-site-v2 <SITE_ID> --confirm
+
+# Tenant Zero Trust score (GraphQL reporting endpoint, not in OpenAPI spec)
+elisity reporting get-aggregate-enforcement-score
+
+# Per-site KPI dashboard (devices, VENs, policy counts, enforcement score)
+elisity -f table reporting get-site-kpis
 
 # Get bearer token for use in scripts
 TOKEN=$(elisity auth token)
@@ -89,6 +96,7 @@ curl -H "Authorization: Bearer $TOKEN" https://your-ccc.idp01.elisity.io/api/top
 | `insights` | 30 | Policy suggestions, dynamic/network group recommendations |
 | `flows` | 18 | Traffic flow search, device state, noise definitions |
 | `system` | 12 | Tasks, specs, state sync |
+| `reporting` | 19 | **GraphQL** — Zero Trust scores, site KPIs, threat vectors, traffic-by-PG/IP. Hand-coded (the CCC reporting API is GraphQL, not in OpenAPI). |
 | `auth` | 3 | Test connection, get token, decode JWT |
 | `config` | 4 | Profile management, configuration display |
 
@@ -186,7 +194,7 @@ python3 tests/qa_comprehensive.py
 - [Getting Started](docs/getting-started.md) — First-time setup walkthrough
 - [User Guide](docs/user-guide.md) — Workflow-oriented guide with real examples
 - [Configuration Reference](docs/configuration.md) — Profiles, env vars, output formats, JMESPath
-- [Command Reference](docs/command-reference.md) — All 443 commands with descriptions
+- [Command Reference](docs/command-reference.md) — All 462 commands with descriptions
 
 ## License
 
