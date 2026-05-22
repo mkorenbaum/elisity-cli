@@ -18,7 +18,13 @@ Command-line interface to the Elisity Cloud Control Center (CCC) API. Provides c
 ## Quick Start
 
 ```bash
-# Install
+# Clone
+git clone https://github.com/mkorenbaum/elisity-cli.git
+cd elisity-cli
+
+# Install (use a venv — modern Ubuntu/Debian block system-wide pip per PEP 668)
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e .
 
 # Configure
@@ -39,6 +45,8 @@ export CCC_CLIENT_ID=your-client-id
 export CCC_CLIENT_SECRET='your-client-secret'
 elisity auth test
 ```
+
+> **For agents and humans new to Elisity:** read **[docs/user-guide.md](docs/user-guide.md)** before doing real work. It is the workflow-oriented guide and has worked examples for the most common queries (devices per site, VEN inventory, posture score, flow search, scripting). The README below is reference material; the user guide is the tutorial.
 
 ## Usage
 
