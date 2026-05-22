@@ -61,7 +61,7 @@ elisity topology get-all-sites -f table
 elisity topology get-all-sites -q '[].name'
 
 # View devices (paginated)
-elisity devices get-devices-view --body '{"page":0,"size":10}'
+elisity devices get-devices-view --body '{"pageable":{"page":0,"size":10}}'
 
 # List policy sets
 elisity policy get-all-as-nd-json

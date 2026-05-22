@@ -31,7 +31,7 @@ def cli(ctx, fmt, query, debug, profile):
 
     Examples:
       elisity topology get-site-v2 <site-id>
-      elisity devices get-devices-view --body '{"page":0,"size":10}'
+      elisity devices get-devices-view --body '{"pageable":{"page":0,"size":10}}'
       elisity policy get-all-as-nd-json --format table
     """
     profile_data = get_active_profile()

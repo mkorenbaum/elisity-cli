@@ -183,7 +183,7 @@ Commands that accept a request body use `--body` (inline JSON) or `--body-file` 
 
 ```bash
 # Inline JSON — first 5 devices
-elisity devices get-devices-view --body '{"page":0,"size":5}'
+elisity devices get-devices-view --body '{"pageable":{"page":0,"size":5}}'
 
 # From a file
 elisity devices get-devices-view --body-file request.json
@@ -283,7 +283,7 @@ elisity topology get-all-sites -q '[].{name: name, id: id}' -f table
 JMESPath filtering applies before formatting, so you can query and then render:
 
 ```bash
-elisity devices get-devices-view --body '{"page":0,"size":10}' \
+elisity devices get-devices-view --body '{"pageable":{"page":0,"size":10}}' \
   -q 'content[].{ip: ipAddress, mac: macAddress, name: deviceName}' \
   -f table
 ```

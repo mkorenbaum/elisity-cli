@@ -107,9 +107,16 @@ Three orthogonal global flags shape the output of every command:
 - `--debug` — print HTTP request URLs, status codes, and headers to stderr. Use this
   when something looks wrong.
 
-Pagination is handled in two ways. Most listing endpoints return all results in a
-single response. The few that paginate take `--body '{"page":0,"size":N}'` in the
-request body, or accept a body file via `--body-file path/to/body.json`. NDJSON
+Pagination is handled three different ways depending on the endpoint:
+
+1. **Most listing endpoints** return all results in a single response — no pagination needed.
+2. **POST search endpoints** (e.g. `devices get-devices-view`) take a body with the page
+   info nested under `pageable`: `--body '{"pageable":{"page":N,"size":M}}'`. A flat
+   `{"page":N,"size":M}` body is silently ignored by the API.
+3. **GET search endpoints** (e.g. `ad get-entra-users`, `topology get-virtual-edge`)
+   expose `--page` and `--size` as query-parameter flags directly on the command.
+
+`--body-file path/to/body.json` works wherever `--body` does. NDJSON
 endpoints (which stream newline-delimited JSON) are parsed transparently and rendered
 the same as any other response.
 
@@ -401,7 +408,7 @@ medical device, a server. Devices live underneath sites and policy groups.
 elisity devices get-device-count
 
 # Paginated browsing
-elisity devices get-devices-view --body '{"page":0,"size":10}'
+elisity devices get-devices-view --body '{"pageable":{"page":0,"size":10}}'
 ```
 
 The devices endpoint paginates, so it always needs a request body. The `--body` flag
@@ -793,13 +800,13 @@ bulk operations, enrichment, and search.
 The primary listing endpoint paginates and requires a body:
 
 ```bash
-elisity devices get-devices-view --body '{"page":0,"size":10}'
+elisity devices get-devices-view --body '{"pageable":{"page":0,"size":10}}'
 ```
 
 The body is **POST request body**, not a CLI flag. A common new-user mistake:
 
 ```bash
-elisity devices get-devices-view --body '{"page":0,"size":10}'
+elisity devices get-devices-view --body '{"pageable":{"page":0,"size":10}}'
 ```
 
 ```text
@@ -842,7 +849,7 @@ Pagination responses have a top-level shape like:
 To drill into just the records and rename common fields:
 
 ```bash
-elisity devices get-devices-view --body '{"page":0,"size":50}' \
+elisity devices get-devices-view --body '{"pageable":{"page":0,"size":50}}' \
   -q 'content[].{name: deviceName, ip: ipAddress, mac: macAddress, group: policyGroupName}' \
   -f table
 ```
@@ -901,11 +908,11 @@ For ad-hoc lookups, JMESPath against the paginated view is usually fastest:
 
 ```bash
 # Devices whose name contains a string
-elisity devices get-devices-view --body '{"page":0,"size":1000}' \
+elisity devices get-devices-view --body '{"pageable":{"page":0,"size":1000}}' \
   -q "content[?contains(deviceName, 'wkst')]" -f table
 
 # Devices with no policy group assigned
-elisity devices get-devices-view --body '{"page":0,"size":1000}' \
+elisity devices get-devices-view --body '{"pageable":{"page":0,"size":1000}}' \
   -q 'content[?policyGroupName == null]' -f table
 ```
 
@@ -954,8 +961,8 @@ Once you've identified the right user-listing command for your CCC version, the
 pattern is the same as everywhere else:
 
 ```bash
-# Paginated; takes a body
-elisity ad get-entra-users --body '{"page":0,"size":50}'
+# Paginated — uses query-parameter flags, not a body
+elisity ad get-entra-users --page 0 --size 50
 
 # Specific user by SID + domain (the way CCC stores AD identity)
 elisity ad get-user-by-sid-and-domain <DOMAIN> <SID>
@@ -1006,8 +1013,9 @@ ticket, a spreadsheet), then apply the approved ones via the corresponding
 create/update endpoints.
 
 ```bash
-# Pull current suggestions
-elisity insights get-policy-groups-suggestion-list --body '{"page":0,"size":200}' \
+# Pull current suggestions (this endpoint returns all suggestions in one shot —
+# no pagination parameters required or accepted)
+elisity insights get-policy-groups-suggestion-list \
   > suggestions-$(date +%F).json
 
 # Hand to whoever owns approval
@@ -1219,7 +1227,7 @@ elisity policy get-all-as-nd-json \
   | jq 'sort_by(.deviceCoverage) | reverse | .[0:5] | .[] | {name, deviceCoverage}'
 
 # Count devices by policy group
-elisity devices get-devices-view --body '{"page":0,"size":1000}' \
+elisity devices get-devices-view --body '{"pageable":{"page":0,"size":1000}}' \
   | jq '.content | group_by(.policyGroupName) | map({group: .[0].policyGroupName, count: length})'
 
 # Generate kubectl-style describe output
@@ -1237,7 +1245,7 @@ CSV output is automatically unwrapped for paginated responses (`content` array) 
 emits a header row derived from the first record:
 
 ```bash
-elisity -f csv devices get-devices-view --body '{"page":0,"size":1000}' \
+elisity -f csv devices get-devices-view --body '{"pageable":{"page":0,"size":1000}}' \
   > devices.csv
 
 elisity -f csv topology get-all-sites > sites.csv
@@ -1411,7 +1419,7 @@ Reading the CLI's own error messages saves time. A few examples:
 **Wrong flag name:**
 
 ```bash
-elisity devices get-devices-view --body '{"page":0,"size":10}'
+elisity devices get-devices-view --body '{"pageable":{"page":0,"size":10}}'
 ```
 
 ```text
@@ -1469,7 +1477,7 @@ Error: Endpoint requires a request body. Pass one with --body or --body-file.
 elisity devices get-devices-view --body '{}'
 ```
 
-This will usually return the first default-sized page. Pass `--body '{"page":0,"size":50}'`
+This will usually return the first default-sized page. Pass `--body '{"pageable":{"page":0,"size":50}}'`
 explicitly when you want a specific window.
 
 #### Tracing a failing script
@@ -1781,7 +1789,7 @@ Paginated responses have a `content` array under a wrapper object. The `table` a
 to:
 
 ```bash
-elisity -f table devices get-devices-view --body '{"page":0,"size":5}'
+elisity -f table devices get-devices-view --body '{"pageable":{"page":0,"size":5}}'
 ```
 
 That just shows 5 device rows, not a one-row table containing a JSON blob. JSON and
@@ -1953,7 +1961,7 @@ and tests.
 The `content[]` prefix unwraps a paginated envelope before further filtering:
 
 ```bash
-elisity devices get-devices-view --body '{"page":0,"size":1000}' \
+elisity devices get-devices-view --body '{"pageable":{"page":0,"size":1000}}' \
   -q 'content[?policyGroupName == null].{name: deviceName, ip: ipAddress}' \
   -f table
 ```
@@ -2044,7 +2052,7 @@ A field guide to the messages you'll see, what they mean, and how to fix them.
 **Wrong flag (the `--data` / `--body` confusion):**
 
 ```bash
-elisity devices get-devices-view --body '{"page":0,"size":10}'
+elisity devices get-devices-view --body '{"pageable":{"page":0,"size":10}}'
 ```
 
 ```text
@@ -2057,7 +2065,7 @@ Error: No such option: --data
 Fix:
 
 ```bash
-elisity devices get-devices-view --body '{"page":0,"size":10}'
+elisity devices get-devices-view --body '{"pageable":{"page":0,"size":10}}'
 ```
 
 **Wrong command name (intuitive but not implemented):**
@@ -2189,7 +2197,7 @@ Usage: elisity [OPTIONS] COMMAND [ARGS]...
   vars, or   run 'elisity config set-profile' to store credentials.
 
   Examples:   elisity topology get-site-v2 <site-id>   elisity devices get-
-  devices-view --body '{"page":0,"size":10}'   elisity policy get-all-as-nd-
+  devices-view --body '{"pageable":{"page":0,"size":10}}'   elisity policy get-all-as-nd-
   json --format table
 
 Options:
