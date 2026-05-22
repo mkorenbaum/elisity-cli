@@ -1486,46 +1486,114 @@ response. The response body almost always contains the operative error message.
 
 ---
 
-### 9. Posture / enforcement scores
+### 9. Zero Trust / posture scores
 
-CCC computes a Zero Trust posture score per **policy set**, exposed via:
+The **primary** Zero Trust score data — the per-policy-group device and
+policy coverage that drives the CCC dashboard Zero Trust page, the malware
+lateral movement page, and per-device risk attribution — lives in a
+GraphQL endpoint at `POST /api/reporting/v1/data`. The OpenAPI spec
+**doesn't include this endpoint** (GraphQL is a different surface), so the
+CLI ships a hand-coded `reporting` group that wraps the queries.
+
+```bash
+# Pull all Zero Trust scores for the latest available snapshot
+elisity reporting get-zero-trust-metrics
+
+# Find what snapshot times have data on this tenant (snapshots are
+# point-in-time, generated at top-of-hour UTC but not for every hour)
+elisity reporting list-snapshots
+
+# Pull a specific snapshot
+elisity reporting get-zero-trust-metrics --snapshot 2026-05-22T11:00:00.000Z
+
+# Server-side site filter (use the site label, e.g. Boston / CORK / Default)
+elisity reporting get-zero-trust-metrics --site Boston
+
+# L4 detail (TCP / UDP / ICMP breakdown of avgAllowedPorts)
+elisity reporting get-zero-trust-metrics --include-l4-detail
+
+# Per-device rows (deviceId + macAddress included)
+elisity reporting get-zero-trust-metrics --include-mac
+```
+
+**The relevant fields on each row:**
+
+| Field | Meaning |
+|---|---|
+| `siteName` / `policyGroupName` / `policySetName` | Where this row lives |
+| `deviceCount` | Devices counted in this row |
+| `totalFlows` / `restrictedFlows` | Flow totals; `restrictedFlows / totalFlows` ≈ blocked-ratio |
+| `avgDeviceCoverage` | **Zero Trust device-coverage score (0–100)** — UI's Zero Trust Device Score |
+| `avgPolicyCoverage` | **Zero Trust policy-coverage score (0–100)** — UI's Zero Trust Policy Score |
+| `l4Metrics.avgAllowedPorts` | Average open-port count per device |
+| `threatVectorMetrics.portExposure[]` | Per-port exposure scores (the malware-lateral-movement page) |
+| `threatVectorMetrics.threatVectors[]` | MITRE ATT&CK technique codes + scores |
+
+**Computing a tenant-wide Zero Trust score** (device-weighted average,
+null-safe — JMESPath has no general arithmetic so do this in jq):
+
+```bash
+elisity reporting get-zero-trust-metrics | jq '
+  {
+    snapshot: .[0].dateTime,
+    total_devices: (map(.deviceCount) | add),
+    weighted_device_coverage: ((map((.avgDeviceCoverage // 0) * .deviceCount) | add)
+                              / (map(.deviceCount) | add)),
+    weighted_policy_coverage: ((map((.avgPolicyCoverage // 0) * .deviceCount) | add)
+                              / (map(.deviceCount) | add))
+  }'
+```
+
+**Per-policy-group breakdown as a table** (note: `-q` and `-f` are
+top-level flags — place them BEFORE the group name):
+
+```bash
+elisity -q '[].{site: siteName, pg: policyGroupName,
+              devices: deviceCount, devCov: avgDeviceCoverage, polCov: avgPolicyCoverage}' \
+  -f table reporting get-zero-trust-metrics
+```
+
+**Threat-vector scores for the malware lateral-movement page:**
+
+```bash
+elisity -q '[].{site: siteName, pg: policyGroupName, topVectors: threatVectorMetrics.threatVectors[0:5]}' \
+  reporting get-zero-trust-metrics
+```
+
+#### Raw GraphQL escape hatch
+
+For ad-hoc queries that aren't in the hand-coded set (additional `operationName`
+values used by the CCC UI such as `GetDeviceRiskAttribution`,
+`GetThreatVectorTrend`, etc.), drop the full GraphQL payload in a JSON file
+and use `elisity reporting query`:
+
+```bash
+cat > /tmp/q.json <<'EOF'
+{
+  "operationName": "MyCustomQuery",
+  "variables": {...},
+  "query": "query MyCustomQuery(...) { ... }"
+}
+EOF
+elisity reporting query --body-file /tmp/q.json
+```
+
+#### The legacy enforcement-score REST endpoint
+
+CCC also has an older per-policy-set "enforcement score" REST endpoint:
 
 ```
 GET /api/policy/v1/enforcement-score/{policySetId}
 ```
 
-There is no global "Zero Trust score" endpoint — the score is always scoped to a
-policy set, and you query it for each one you care about.
-
-```bash
-# Get every policy set ID + name
-elisity policy get-all-as-nd-json -q '[].{id: id, name: name}'
-
-# Then pull the score for one
-elisity policy get-enforcement-score <POLICY_SET_ID>
-
-# Or fan out across all of them in one go
-for id in $(elisity policy get-all-as-nd-json -q '[].id' -f csv | tail -n +2); do
-  echo "=== $id ==="
-  elisity policy get-enforcement-score "$id" -q '{policySetId: policySetId, total: total}'
-done
-```
-
-**Tenant gating.** On tenants where the enforcement-score feature is disabled (older
-CCC versions, demo tenants, feature-flagged deployments), every call to
-`get-enforcement-score` returns `404 Client Error: Not Found`. The endpoint is
-in the spec but not served. In that case use **policy coverage** as the closest
-proxy:
-
-```bash
-# Per-policy-set device + policy coverage
-elisity policy get-all-as-nd-json \
-  -q '[].{name: name, deviceCoverage: deviceCoverage, policyCoverage: policyCoverage}'
-```
-
-`deviceCoverage` reflects what fraction of a site's devices have policy assignments;
-`policyCoverage` reflects what fraction of authored policies are active. Together they
-approximate the posture story without depending on the score endpoint.
+This is the auto-generated `elisity policy get-enforcement-score <POLICY_SET_ID>`
+command. On many tenants (older CCC versions, demo tenants, feature-flagged
+deployments) it returns `404 Client Error: Not Found`. The GraphQL
+`reporting` endpoint above is the authoritative source for live Zero Trust
+scores; use the REST endpoint only when you need its specific weighted-score
+schema. The per-policy-set fields on `policy get-all-as-nd-json`
+(`deviceCoverage`, `policyCoverage`) are also a usable fallback for
+broad posture summaries.
 
 ### 10. Flow search
 
