@@ -1,6 +1,6 @@
 # Elisity CCC CLI
 
-[![tests](https://github.com/Elisity/elisity-cli/actions/workflows/test.yml/badge.svg)](https://github.com/Elisity/elisity-cli/actions/workflows/test.yml)
+[![tests](https://github.com/mkorenbaum/elisity-cli/actions/workflows/test.yml/badge.svg)](https://github.com/mkorenbaum/elisity-cli/actions/workflows/test.yml)
 
 Command-line interface to the Elisity Cloud Control Center (CCC) API. Provides complete coverage of all 436 CCC API endpoints across topology, policy, devices, connectors, AD/Entra integration, traffic flows, insights, and system operations.
 
