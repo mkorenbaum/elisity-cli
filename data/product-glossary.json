@@ -1,0 +1,106 @@
+{
+  "_source": {
+    "repo": "Elisity/ccc",
+    "path": "esaas/backend/insights/src/main/resources/assistant/product-glossary.json",
+    "imported_at": "2026-05-27",
+    "imported_by": "luke@elisity-cli-glossary-task"
+  },
+  "instruction": "Use official Elisity product terminology in all responses. When a user uses a generic industry term, respond with the correct Elisity term but briefly bridge the concept for clarity. Example: 'The Distribution Zone (similar to what you might know as a network zone) defines...'",
+  "terms": [
+    {
+      "correct": "Simulation",
+      "incorrect": ["monitor mode", "passive mode", "audit mode", "dry run", "simulated"],
+      "context": "Policy enforcement state where traffic is logged but not blocked. UI actions: 'Save as Simulation'. Enum: MONITOR_ONLY."
+    },
+    {
+      "correct": "Active",
+      "incorrect": ["enforcement mode", "inline mode", "blocking mode", "enforce mode"],
+      "context": "Policy enforcement state where traffic is actively permitted/denied. UI actions: 'Activate Policy', 'Save as Active'. Enum: MONITOR_AND_ENFORCE."
+    },
+    {
+      "correct": "Policy Group",
+      "incorrect": ["security group", "endpoint group", "segment", "zone"],
+      "context": "Collection of devices receiving the same security treatment. Can be Dynamic or Static, Global or Local."
+    },
+    {
+      "correct": "Security Profile",
+      "incorrect": ["ACL", "access control list", "firewall rule", "rule set"],
+      "context": "Reusable L4 traffic filtering template defining protocol, ports, and permit/deny actions."
+    },
+    {
+      "correct": "Policy Matrix",
+      "incorrect": ["rule table", "policy table", "access matrix", "segmentation matrix"],
+      "context": "Visual PG-to-PG grid. Colors: Allow (green), Deny (red), Custom (blue), No Policy (gray)."
+    },
+    {
+      "correct": "Policy Enforcement Score",
+      "incorrect": ["security score", "risk score", "compliance score", "posture score", "enforcement score"],
+      "context": "0-100 metric for policy coverage quality. Also referred to as Policy Deployment Score. Simulation policies contribute only 10% weight."
+    },
+    {
+      "correct": "Security Level (SL1-SL4)",
+      "incorrect": ["priority", "severity", "risk level", "classification level"],
+      "context": "IEC 62443 aligned criticality. SL1=Low Impact, SL2=Medium, SL3=High, SL4=Critical."
+    },
+    {
+      "correct": "Virtual Edge (VE)",
+      "incorrect": ["edge gateway", "edge appliance", "SD-WAN edge"],
+      "context": "Logical grouping of Virtual Edge Nodes. Software-defined, not a physical appliance."
+    },
+    {
+      "correct": "Virtual Edge Node (VEN)",
+      "incorrect": ["network agent", "sensor", "enforcement point", "appliance"],
+      "context": "Existing switch onboarded as an Elisity enforcement point. No new hardware required."
+    },
+    {
+      "correct": "Visibility-Only Virtual Edge Node",
+      "incorrect": ["visibility ven", "visibility only ven", "visibility mode", "monitor-only ven", "read-only ven", "passive ven"],
+      "context": "A VEN deployment mode that monitors and reports network traffic without enforcing any policies. Used for pre-deployment network discovery, baselining traffic, and compliance auditing before activating policy enforcement."
+    },
+    {
+      "correct": "Distribution Zone",
+      "incorrect": ["network zone", "VLAN", "subnet", "security zone", "broadcast domain"],
+      "context": "Elisity logical enforcement boundary. Can span multiple VLANs."
+    },
+    {
+      "correct": "Cloud Control Center (CCC)",
+      "incorrect": ["management console", "controller", "dashboard", "management plane"],
+      "context": "Elisity's SaaS management platform."
+    },
+    {
+      "correct": "IdentityGraph",
+      "incorrect": ["device inventory", "CMDB", "asset database", "network inventory"],
+      "context": "Dynamic multi-source identity engine that constructs a holistic view of every network entity."
+    },
+    {
+      "correct": "Adjudication",
+      "incorrect": ["approval", "review", "validation", "triage", "confirmation"],
+      "context": "Accept/reject workflow for Insights classification recommendations. Statuses: PENDING, ACCEPTED, REJECTED."
+    },
+    {
+      "correct": "Insights",
+      "incorrect": ["recommendations", "AI suggestions", "analytics", "anomaly detection"],
+      "context": "ML/LLM engine for device classification, policy group suggestions, and policy activation recommendations."
+    },
+    {
+      "correct": "Unassigned (Policy Group)",
+      "incorrect": ["default group", "ungrouped", "uncategorized", "catch-all"],
+      "context": "System Policy Group where devices land when they don't match any Dynamic or Static Policy Group."
+    },
+    {
+      "correct": "Traffic Analytics",
+      "incorrect": ["traffic analysis", "flow analysis", "network monitoring", "traffic monitoring"],
+      "context": "CCC feature for analyzing network traffic flows, top talkers, and policy action breakdowns."
+    },
+    {
+      "correct": "Independent Control",
+      "incorrect": ["external monitoring", "third-party enforcement", "external mode"],
+      "context": "Policy mode where enforcement is handled by an external system. Enum: MONITOR_EXTERNAL."
+    },
+    {
+      "correct": "Elisity Assistant",
+      "incorrect": ["AI assistant", "chatbot", "copilot", "virtual assistant"],
+      "context": "The AI-powered chat feature in CCC for network security operations assistance."
+    }
+  ]
+}

@@ -2,17 +2,20 @@
 
 [![tests](https://github.com/mkorenbaum/elisity-cli/actions/workflows/test.yml/badge.svg)](https://github.com/mkorenbaum/elisity-cli/actions/workflows/test.yml)
 
-Command-line interface to the Elisity Cloud Control Center (CCC) API. Provides complete coverage of the CCC API surface — all 436 REST endpoints from the OpenAPI spec, plus 19 hand-coded GraphQL commands for the `/api/reporting/v1/data` endpoint (Zero Trust scores, threat vectors, per-site KPIs, traffic vectors) that the OpenAPI spec doesn't include.
+Command-line interface to the Elisity Cloud Control Center (CCC) API. Provides complete coverage of the CCC API surface — all 436 REST endpoints from the OpenAPI spec, plus 19 hand-coded GraphQL commands for the `/api/reporting/v1/data` endpoint (Zero Trust scores, threat vectors, per-site KPIs, traffic vectors) that the OpenAPI spec doesn't include, plus a 3-command CLI-native `glossary` group that maps Elisity UI terminology to CLI commands.
+
+> **For AI agents:** see [docs/AGENTS.md](docs/AGENTS.md) for a UI-term → CLI-command operating guide. The `elisity glossary` group is the runtime lookup surface.
 
 ## Features
 
-- **462 commands** total (436 auto-generated from the CCC OpenAPI spec + 19 hand-coded GraphQL reporting commands + 7 CLI-native auth/config)
+- **465 commands** total (436 auto-generated from the CCC OpenAPI spec + 19 hand-coded GraphQL reporting commands + 7 CLI-native auth/config + 3 CLI-native glossary commands)
 - **Multi-profile configuration** — manage multiple CCC environments (prod, staging, lab)
 - **4 output formats** — JSON (default), table, YAML, CSV
 - **JMESPath filtering** — reshape and filter output with `-q` expressions
 - **OAuth2 authentication** — client_credentials grant with auto-refresh
 - **NDJSON support** — transparent parsing of newline-delimited JSON endpoints
 - **GraphQL reporting** — `reporting` group wraps the CCC dashboard's GraphQL queries (Zero Trust scores, site KPIs, threat vectors, traffic-by-PG/IP)
+- **UI-term glossary** — `glossary` group answers "what command runs the Zero Trust Score tile?" without guesswork
 - **Destructive-op safety** — DELETE commands require `--confirm`
 - **Retry with backoff** — automatic retry on connection errors and timeouts
 
@@ -36,6 +39,9 @@ elisity config set-profile myenv \
 
 # Verify
 elisity auth test
+
+# What command runs the "Zero Trust Score" tile in the UI?
+elisity glossary explain "Zero Trust score"
 ```
 
 **Or use environment variables:**
@@ -47,7 +53,7 @@ export CCC_CLIENT_SECRET='your-client-secret'
 elisity auth test
 ```
 
-> **For agents and humans new to Elisity:** read **[docs/user-guide.md](docs/user-guide.md)** before doing real work. It is the workflow-oriented guide and has worked examples for the most common queries (devices per site, VEN inventory, posture score, flow search, scripting). The README below is reference material; the user guide is the tutorial.
+> **For agents and humans new to Elisity:** read **[docs/user-guide.md](docs/user-guide.md)** before doing real work. It is the workflow-oriented guide and has worked examples for the most common queries (devices per site, VEN inventory, posture score, flow search, scripting). The README below is reference material; the user guide is the tutorial. AI agents should additionally read [docs/AGENTS.md](docs/AGENTS.md).
 
 ## Usage
 
@@ -56,7 +62,7 @@ elisity auth test
 elisity topology get-all-sites
 
 # List sites as a table
-elisity topology get-all-sites -f table
+elisity -f table topology get-all-sites
 
 # Extract just site names
 elisity topology get-all-sites -q '[].name'
@@ -79,6 +85,10 @@ elisity reporting get-aggregate-enforcement-score
 # Per-site KPI dashboard (devices, VENs, policy counts, enforcement score)
 elisity -f table reporting get-site-kpis
 
+# Map UI term → CLI command
+elisity glossary search "monitor mode"
+elisity glossary explain "VEN"
+
 # Get bearer token for use in scripts
 TOKEN=$(elisity auth token)
 curl -H "Authorization: Bearer $TOKEN" https://your-ccc.idp01.elisity.io/api/topology/v2/sites
@@ -97,6 +107,7 @@ curl -H "Authorization: Bearer $TOKEN" https://your-ccc.idp01.elisity.io/api/top
 | `flows` | 18 | Traffic flow search, device state, noise definitions |
 | `system` | 12 | Tasks, specs, state sync |
 | `reporting` | 19 | **GraphQL** — Zero Trust scores, site KPIs, threat vectors, traffic-by-PG/IP. Hand-coded (the CCC reporting API is GraphQL, not in OpenAPI). |
+| `glossary` | 3 | Map Elisity UI terminology to CLI commands |
 | `auth` | 3 | Test connection, get token, decode JWT |
 | `config` | 4 | Profile management, configuration display |
 
@@ -106,15 +117,16 @@ curl -H "Authorization: Bearer $TOKEN" https://your-ccc.idp01.elisity.io/api/top
 elisity --help                    # All groups
 elisity topology --help           # All topology commands
 elisity topology get-site-v2 --help  # Command-specific help
+elisity glossary list             # All glossary terms
 ```
 
 ## Output Formats
 
 ```bash
 elisity topology get-all-sites                    # JSON (default)
-elisity topology get-all-sites -f table           # Rich terminal table
-elisity topology get-all-sites -f yaml            # YAML
-elisity topology get-all-sites -f csv             # CSV with headers
+elisity -f table topology get-all-sites           # Rich terminal table
+elisity -f yaml topology get-all-sites            # YAML
+elisity -f csv topology get-all-sites             # CSV with headers
 ```
 
 ## JMESPath Queries
@@ -193,8 +205,10 @@ python3 tests/qa_comprehensive.py
 
 - [Getting Started](docs/getting-started.md) — First-time setup walkthrough
 - [User Guide](docs/user-guide.md) — Workflow-oriented guide with real examples
+- [AI Agent Operating Guide](docs/AGENTS.md) — How an AI agent should run the CLI on a human's behalf
+- [Glossary Appendix](docs/glossary.md) — UI term → CLI command reference (human-readable)
 - [Configuration Reference](docs/configuration.md) — Profiles, env vars, output formats, JMESPath
-- [Command Reference](docs/command-reference.md) — All 462 commands with descriptions
+- [Command Reference](docs/command-reference.md) — All 465 commands with descriptions
 
 ## License
 

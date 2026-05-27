@@ -1,0 +1,713 @@
+[
+  {
+    "term": "Simulation",
+    "synonyms": [
+      "monitor mode",
+      "passive mode",
+      "audit mode",
+      "dry run",
+      "simulated"
+    ],
+    "context": "Policy enforcement state where traffic is logged but not blocked. UI actions: 'Save as Simulation'. Enum: MONITOR_ONLY.",
+    "enum_value": "MONITOR_ONLY",
+    "domain": "policy",
+    "cli_recipes": [
+      {
+        "intent": "Count policies currently in Simulation (monitor-only) mode for the latest snapshot",
+        "command": "elisity reporting get-policy-count --monitor-mode MONITOR_ONLY",
+        "notes": "Single GraphQL call \u2014 returns {dateTime, monitorMode, value}. Use --site to scope to one or more sites."
+      },
+      {
+        "intent": "List traffic that hit policies in Simulation mode over the last 24h",
+        "command": "elisity reporting get-traffic-count --policy-status SIMULATION",
+        "notes": "PolicyStatus=SIMULATION corresponds to policies in MONITOR_ONLY enforcement."
+      },
+      {
+        "intent": "Filter the full policy stream to only Simulation policies",
+        "command": "elisity policy get-all-as-nd-json -q '[?enforcementState==`MONITOR_ONLY`]'",
+        "notes": "JMESPath filter over the ndjson stream. enforcementState is the per-policy field."
+      }
+    ],
+    "related_commands": [
+      "elisity reporting get-policy-count",
+      "elisity reporting get-traffic-count",
+      "elisity policy get-all-as-nd-json",
+      "elisity policy change-status"
+    ]
+  },
+  {
+    "term": "Active",
+    "synonyms": [
+      "enforcement mode",
+      "inline mode",
+      "blocking mode",
+      "enforce mode"
+    ],
+    "context": "Policy enforcement state where traffic is actively permitted/denied. UI actions: 'Activate Policy', 'Save as Active'. Enum: MONITOR_AND_ENFORCE.",
+    "enum_value": "MONITOR_AND_ENFORCE",
+    "domain": "policy",
+    "cli_recipes": [
+      {
+        "intent": "Count policies currently in Active (monitor-and-enforce) mode for the latest snapshot",
+        "command": "elisity reporting get-policy-count --monitor-mode MONITOR_AND_ENFORCE",
+        "notes": "Single GraphQL call \u2014 returns {dateTime, monitorMode, value}."
+      },
+      {
+        "intent": "List traffic that hit Active policies over the last 24h",
+        "command": "elisity reporting get-traffic-count --policy-status ACTIVE",
+        "notes": "PolicyStatus=ACTIVE corresponds to MONITOR_AND_ENFORCE."
+      },
+      {
+        "intent": "Filter the full policy stream to only Active policies",
+        "command": "elisity policy get-all-as-nd-json -q '[?enforcementState==`MONITOR_AND_ENFORCE`]'",
+        "notes": "JMESPath filter against the per-policy enforcementState field."
+      },
+      {
+        "intent": "Activate a simulation policy (transition to enforce)",
+        "command": "elisity policy change-status --help",
+        "notes": "Use change-status to flip enforcement state. Run --help first to see required body shape; do NOT bulk-activate without an approved change window."
+      }
+    ],
+    "related_commands": [
+      "elisity reporting get-policy-count",
+      "elisity reporting get-traffic-count",
+      "elisity policy get-all-as-nd-json",
+      "elisity policy change-status",
+      "elisity policy update-policy"
+    ]
+  },
+  {
+    "term": "Policy Group",
+    "synonyms": [
+      "security group",
+      "endpoint group",
+      "segment",
+      "zone",
+      "PG"
+    ],
+    "context": "Collection of devices receiving the same security treatment. Can be Dynamic or Static, Global or Local.",
+    "enum_value": null,
+    "domain": "policy",
+    "cli_recipes": [
+      {
+        "intent": "List all policy groups (one JSON object per line)",
+        "command": "elisity policy get-policy-groups-json --filters '{}' --pageable '{\"page\":0,\"size\":50}'",
+        "notes": "Both --filters and --pageable are required by the endpoint; '{}' filter returns all PGs."
+      },
+      {
+        "intent": "Get a single policy group by id with full detail",
+        "command": "elisity policy get-policy-group-by-id <POLICY_GROUP_ID>",
+        "notes": "Pass the UUID returned by get-policy-groups-json."
+      },
+      {
+        "intent": "List devices currently in a policy group",
+        "command": "elisity policy get-policy-group-devices <POLICY_GROUP_ID>",
+        "notes": "Returns the device roster for a single PG."
+      },
+      {
+        "intent": "Count policy groups (local vs global) at the latest snapshot",
+        "command": "elisity reporting get-policy-groups-count --local true",
+        "notes": "Drop --local to get the combined count."
+      }
+    ],
+    "related_commands": [
+      "elisity policy get-policy-groups-json",
+      "elisity policy get-policy-group-by-id",
+      "elisity policy get-policy-group-devices",
+      "elisity policy create-dynamic-policy-group",
+      "elisity policy create-network-policy-group",
+      "elisity policy update-dynamic-policy-group",
+      "elisity policy delete-policy-group",
+      "elisity reporting get-policy-groups-count"
+    ]
+  },
+  {
+    "term": "Security Profile",
+    "synonyms": [
+      "ACL",
+      "access control list",
+      "firewall rule",
+      "rule set"
+    ],
+    "context": "Reusable L4 traffic filtering template defining protocol, ports, and permit/deny actions.",
+    "enum_value": null,
+    "domain": "policy",
+    "cli_recipes": [
+      {
+        "intent": "List all security profiles (one JSON object per line)",
+        "command": "elisity policy get-all-security-profiles-as-nd-json",
+        "notes": "Streaming ndjson \u2014 combine with -q to project a subset of fields."
+      },
+      {
+        "intent": "Read a single security profile",
+        "command": "elisity policy read-security-profile <SECURITY_PROFILE_ID>",
+        "notes": "Returns the L4 rule template for one profile."
+      },
+      {
+        "intent": "Find every policy referencing a given security profile",
+        "command": "elisity policy get-policies-for-security-profile <SECURITY_PROFILE_ID>",
+        "notes": "Useful before editing or deleting a profile \u2014 surfaces blast radius."
+      }
+    ],
+    "related_commands": [
+      "elisity policy get-all-security-profiles-as-nd-json",
+      "elisity policy read-security-profile",
+      "elisity policy create-security-profile",
+      "elisity policy create-security-profiles",
+      "elisity policy update-security-profile",
+      "elisity policy delete-security-profiles",
+      "elisity policy get-policies-for-security-profile"
+    ]
+  },
+  {
+    "term": "Policy Matrix",
+    "synonyms": [
+      "rule table",
+      "policy table",
+      "access matrix",
+      "segmentation matrix"
+    ],
+    "context": "Visual PG-to-PG grid. Colors: Allow (green), Deny (red), Custom (blue), No Policy (gray).",
+    "enum_value": null,
+    "domain": "policy",
+    "cli_recipes": [
+      {
+        "intent": "Discover policy set IDs (the matrix is per-policy-set)",
+        "command": "elisity policy get-all-as-nd-json -q '[].{id:id,name:name}'",
+        "notes": "Lists policy sets so you can pick an ID for get-matrix."
+      },
+      {
+        "intent": "Get the full policy matrix (PG-to-PG grid as JSON) for a policy set",
+        "command": "elisity policy get-matrix <POLICY_SET_ID>",
+        "notes": "Use the id from recipe [0]."
+      }
+    ],
+    "related_commands": [
+      "elisity policy get-matrix",
+      "elisity policy get-all-policies-as-nd-json",
+      "elisity policy get-all-as-nd-json",
+      "elisity policy create-policy",
+      "elisity policy update-policy"
+    ]
+  },
+  {
+    "term": "Policy Enforcement Score",
+    "synonyms": [
+      "security score",
+      "risk score",
+      "compliance score",
+      "posture score",
+      "enforcement score",
+      "Zero Trust score",
+      "policy deployment score"
+    ],
+    "context": "0-100 metric for policy coverage quality. Also referred to as Policy Deployment Score. Simulation policies contribute only 10% weight.",
+    "enum_value": null,
+    "domain": "reporting",
+    "cli_recipes": [
+      {
+        "intent": "Get the tenant-wide Zero Trust / Policy Enforcement Score headline number",
+        "command": "elisity reporting get-aggregate-enforcement-score",
+        "notes": "Returns the single FloatMetricValue the CCC dashboard tile shows. Default snapshot is the previous full hour UTC."
+      },
+      {
+        "intent": "Get the Policy Enforcement Score for a single policy set",
+        "command": "elisity reporting get-policy-set-enforcement-score <POLICY_SET_ID>",
+        "notes": "Use `elisity policy get-all-as-nd-json -q '[].{id: id, name: name}'` to list policy set ids."
+      },
+      {
+        "intent": "Per-policy-group device + policy coverage breakdown",
+        "command": "elisity reporting get-zero-trust-metrics",
+        "notes": "Returns avgDeviceCoverage + avgPolicyCoverage per (site, PG, snapshot). The matrix behind the headline score."
+      },
+      {
+        "intent": "Show the weights used to compute the Policy Enforcement Score",
+        "command": "elisity policy get-enforcement-score-weight-settings",
+        "notes": "Returns the weights config (Simulation policies contribute ~10%)."
+      }
+    ],
+    "related_commands": [
+      "elisity reporting get-aggregate-enforcement-score",
+      "elisity reporting get-policy-set-enforcement-score",
+      "elisity reporting get-zero-trust-metrics",
+      "elisity policy get-enforcement-score",
+      "elisity policy get-enforcement-score-weight-settings"
+    ]
+  },
+  {
+    "term": "Security Level (SL1-SL4)",
+    "synonyms": [
+      "priority",
+      "severity",
+      "risk level",
+      "classification level",
+      "SL1",
+      "SL2",
+      "SL3",
+      "SL4",
+      "IEC 62443"
+    ],
+    "context": "IEC 62443 aligned criticality. SL1=Low Impact, SL2=Medium, SL3=High, SL4=Critical.",
+    "enum_value": null,
+    "domain": "devices",
+    "cli_recipes": [
+      {
+        "intent": "Discover which device attribute carries Security Level (per-tenant naming may vary)",
+        "command": "elisity devices read-all-layer-instances-specification",
+        "notes": "Lists every device-attribute layer. Look for an attribute named like 'security_level' or 'iec_62443' \u2014 Security Level is modeled as a device attribute, not a top-level field."
+      },
+      {
+        "intent": "List the values currently in use for a given attribute (e.g. SL1..SL4)",
+        "command": "elisity devices get-values-for-device-attribute <ATTRIBUTE_NAME>",
+        "notes": "Confirms the enum values present in the IdentityGraph before building filter logic."
+      }
+    ],
+    "related_commands": [
+      "elisity devices read-all-layer-instances-specification",
+      "elisity devices get-device-attribute-values",
+      "elisity devices get-values-for-device-attribute",
+      "elisity devices get-devices-view"
+    ]
+  },
+  {
+    "term": "Virtual Edge (VE)",
+    "synonyms": [
+      "edge gateway",
+      "edge appliance",
+      "SD-WAN edge",
+      "VE"
+    ],
+    "context": "Logical grouping of Virtual Edge Nodes. Software-defined, not a physical appliance.",
+    "enum_value": null,
+    "domain": "topology",
+    "cli_recipes": [
+      {
+        "intent": "List all Virtual Edges (search/filter, no args = all)",
+        "command": "elisity topology get-virtual-edge",
+        "notes": "Returns a paginated content[] list of VEs with id, name, veType, veVendor."
+      },
+      {
+        "intent": "Count Virtual Edges for the latest snapshot",
+        "command": "elisity reporting get-virtual-edges-count",
+        "notes": "Single value per snapshot \u2014 the headline VE count."
+      },
+      {
+        "intent": "Export every Virtual Edge to JSON",
+        "command": "elisity topology export-virtual-edges",
+        "notes": "Bulk export \u2014 useful for inventory or backup before edits."
+      }
+    ],
+    "related_commands": [
+      "elisity topology get-virtual-edge-by-id",
+      "elisity topology get-virtual-edge",
+      "elisity topology create-virtual-edge",
+      "elisity topology update-virtual-edge",
+      "elisity topology delete-virtual-edge",
+      "elisity topology export-virtual-edges",
+      "elisity reporting get-virtual-edges-count"
+    ]
+  },
+  {
+    "term": "Virtual Edge Node (VEN)",
+    "synonyms": [
+      "network agent",
+      "sensor",
+      "enforcement point",
+      "appliance",
+      "VEN",
+      "switch"
+    ],
+    "context": "Existing switch onboarded as an Elisity enforcement point. No new hardware required.",
+    "enum_value": null,
+    "domain": "topology",
+    "cli_recipes": [
+      {
+        "intent": "List every Virtual Edge Node",
+        "command": "elisity topology get-virtual-edge-nodes",
+        "notes": "Returns the full VEN inventory with status, model, and parent VE."
+      },
+      {
+        "intent": "Get a single VEN by id",
+        "command": "elisity topology get-single-ven <VEN_ID>",
+        "notes": "One VEN with full detail (interfaces, registration, firmware)."
+      },
+      {
+        "intent": "Count VENs by model for the latest snapshot",
+        "command": "elisity reporting get-virtual-edge-nodes-count",
+        "notes": "Per-model + per-type breakdown. Use --model to filter."
+      },
+      {
+        "intent": "Export every VEN to JSON",
+        "command": "elisity topology export-virtual-edge-nodes",
+        "notes": "Bulk export \u2014 useful for inventory or backup before edits."
+      }
+    ],
+    "related_commands": [
+      "elisity topology get-virtual-edge-nodes",
+      "elisity topology get-single-ven",
+      "elisity topology create-ven",
+      "elisity topology update-ven",
+      "elisity topology delete-ven",
+      "elisity topology decommission-virtual-edge-node",
+      "elisity topology recommission-virtual-edge-node",
+      "elisity topology export-virtual-edge-nodes",
+      "elisity reporting get-virtual-edge-nodes-count"
+    ]
+  },
+  {
+    "term": "Visibility-Only Virtual Edge Node",
+    "synonyms": [
+      "visibility ven",
+      "visibility only ven",
+      "visibility mode",
+      "monitor-only ven",
+      "read-only ven",
+      "passive ven"
+    ],
+    "context": "A VEN deployment mode that monitors and reports network traffic without enforcing any policies. Used for pre-deployment network discovery, baselining traffic, and compliance auditing before activating policy enforcement.",
+    "enum_value": null,
+    "domain": "topology",
+    "cli_recipes": [
+      {
+        "intent": "List all VENs and inspect their mode field to find visibility-only ones",
+        "command": "elisity topology get-virtual-edge-nodes",
+        "notes": "Visibility-only is a VEN deployment mode \u2014 inspect each VEN's mode/role attribute. Per-tenant attribute names vary; use `-q` to project once you know the field name."
+      },
+      {
+        "intent": "Get a single VEN with full detail (mode, interfaces, registration)",
+        "command": "elisity topology get-single-ven <VEN_ID>",
+        "notes": "Returns the VEN's deployment mode. Visibility-Only VENs do not push enforcement rules."
+      },
+      {
+        "intent": "Inspect traffic from a Visibility-Only VEN's site (no enforcement, just visibility)",
+        "command": "elisity reporting get-traffic-count --kind ALL --site <SITE_NAME>",
+        "notes": "Useful for verifying pre-deployment baselining is collecting data before activating enforcement."
+      }
+    ],
+    "related_commands": [
+      "elisity topology get-virtual-edge-nodes",
+      "elisity topology get-single-ven",
+      "elisity topology update-ven",
+      "elisity topology decommission-virtual-edge-node",
+      "elisity topology recommission-virtual-edge-node"
+    ]
+  },
+  {
+    "term": "Distribution Zone",
+    "synonyms": [
+      "network zone",
+      "VLAN",
+      "subnet",
+      "security zone",
+      "broadcast domain",
+      "DZ"
+    ],
+    "context": "Elisity logical enforcement boundary. Can span multiple VLANs.",
+    "enum_value": null,
+    "domain": "topology",
+    "cli_recipes": [
+      {
+        "intent": "List every Distribution Zone",
+        "command": "elisity topology get-all-distribution-zones",
+        "notes": "Returns the full DZ inventory with associated sites and VLAN ranges."
+      },
+      {
+        "intent": "Get a single Distribution Zone by id",
+        "command": "elisity topology get-distribution-zone <DZ_ID>",
+        "notes": "One DZ with VLAN membership and policy bindings."
+      },
+      {
+        "intent": "Export every Distribution Zone",
+        "command": "elisity topology export-distribution-zones",
+        "notes": "Bulk JSON export of all DZs."
+      },
+      {
+        "intent": "List online devices grouped by Distribution Zone",
+        "command": "elisity policy get-online-devices-for-distribution-zones",
+        "notes": "Snapshot of how many live devices sit inside each DZ."
+      }
+    ],
+    "related_commands": [
+      "elisity topology get-all-distribution-zones",
+      "elisity topology get-distribution-zone",
+      "elisity topology create-distribution-zone",
+      "elisity topology update-distribution-zone",
+      "elisity topology delete-distribution-zone",
+      "elisity topology export-distribution-zones",
+      "elisity policy get-online-devices-for-distribution-zones"
+    ]
+  },
+  {
+    "term": "Cloud Control Center (CCC)",
+    "synonyms": [
+      "management console",
+      "controller",
+      "dashboard",
+      "management plane",
+      "CCC"
+    ],
+    "context": "Elisity's SaaS management platform.",
+    "enum_value": null,
+    "domain": "terminology-only",
+    "cli_recipes": [],
+    "note": "CCC is the platform the CLI talks to \u2014 there is no single CLI command that represents 'CCC'. To verify CLI connectivity to a specific CCC tenant use `elisity auth test`; to inspect the active connection use `elisity config show`.",
+    "related_commands": [
+      "elisity auth test",
+      "elisity auth token",
+      "elisity auth whoami",
+      "elisity config show",
+      "elisity config set-profile",
+      "elisity config use-profile"
+    ]
+  },
+  {
+    "term": "IdentityGraph",
+    "synonyms": [
+      "device inventory",
+      "CMDB",
+      "asset database",
+      "network inventory"
+    ],
+    "context": "Dynamic multi-source identity engine that constructs a holistic view of every network entity.",
+    "enum_value": null,
+    "domain": "devices",
+    "cli_recipes": [
+      {
+        "intent": "Get the device-attribute layer specifications backing the IdentityGraph",
+        "command": "elisity devices read-all-layer-instances-specification",
+        "notes": "Enumerates every attribute layer (DHCP, AD, connector-sourced, etc.) the IdentityGraph composes."
+      },
+      {
+        "intent": "Get a paginated devices view (IdentityGraph contents)",
+        "command": "elisity devices get-devices-view --body '{\"pageable\":{\"page\":0,\"size\":50}}'",
+        "notes": "Body pagination is required \u2014 see Common pitfalls in docs/user-guide.md."
+      },
+      {
+        "intent": "Get device counts broken out by source connector",
+        "command": "elisity reporting get-devices-by-connector",
+        "notes": "Answers 'which connector contributes the most devices to the IdentityGraph?'"
+      },
+      {
+        "intent": "Tenant-wide online/offline device count",
+        "command": "elisity reporting get-device-count",
+        "notes": "Single GraphQL call \u2014 much cheaper than paginating get-devices-view."
+      }
+    ],
+    "related_commands": [
+      "elisity devices get-devices-view",
+      "elisity devices read-all-layer-instances-specification",
+      "elisity devices read-device",
+      "elisity devices search-device",
+      "elisity devices get-device-aggregate",
+      "elisity reporting get-device-count",
+      "elisity reporting get-devices-by-connector"
+    ]
+  },
+  {
+    "term": "Adjudication",
+    "synonyms": [
+      "approval",
+      "review",
+      "validation",
+      "triage",
+      "confirmation"
+    ],
+    "context": "Accept/reject workflow for Insights classification recommendations. Statuses: PENDING, ACCEPTED, REJECTED.",
+    "enum_value": null,
+    "domain": "insights",
+    "cli_recipes": [
+      {
+        "intent": "List policy suggestions awaiting adjudication",
+        "command": "elisity insights get-policy-suggestion-list",
+        "notes": "Returns suggestions whose status is one of PENDING/ACCEPTED/REJECTED."
+      },
+      {
+        "intent": "List policy group classification suggestions",
+        "command": "elisity insights get-policy-group-suggestions",
+        "notes": "PG-classification suggestions \u2014 the most common adjudication surface."
+      },
+      {
+        "intent": "Accept or reject (update) a suggestion",
+        "command": "elisity insights update-suggestion --help",
+        "notes": "Run --help to see the required body shape; status field flips PENDING \u2192 ACCEPTED or REJECTED."
+      }
+    ],
+    "related_commands": [
+      "elisity insights get-suggestions",
+      "elisity insights get-suggestions-ok-status-only",
+      "elisity insights get-policy-group-suggestions",
+      "elisity insights get-policy-suggestion-list",
+      "elisity insights update-suggestion",
+      "elisity insights update-suggestion-put",
+      "elisity insights reorder-suggestion",
+      "elisity insights delete-suggestion"
+    ]
+  },
+  {
+    "term": "Insights",
+    "synonyms": [
+      "recommendations",
+      "AI suggestions",
+      "analytics",
+      "anomaly detection"
+    ],
+    "context": "ML/LLM engine for device classification, policy group suggestions, and policy activation recommendations.",
+    "enum_value": null,
+    "domain": "insights",
+    "cli_recipes": [
+      {
+        "intent": "List all policy suggestions",
+        "command": "elisity insights get-policy-suggestion-list",
+        "notes": "Param-free GET; returns active suggestions across all categories."
+      },
+      {
+        "intent": "List policy-activation suggestions",
+        "command": "elisity insights get-policy-suggestion-list",
+        "notes": "Policies Insights recommends activating (transition Simulation \u2192 Active)."
+      },
+      {
+        "intent": "Re-run the policy-suggestion pipeline",
+        "command": "elisity insights recreate-policy-suggestions",
+        "notes": "Forces Insights to recompute. Use sparingly \u2014 it kicks off a heavy job."
+      },
+      {
+        "intent": "Inspect Insights engine settings",
+        "command": "elisity insights get-settings",
+        "notes": "Returns thresholds and toggles controlling the ML/LLM engine."
+      }
+    ],
+    "related_commands": [
+      "elisity insights get-suggestions",
+      "elisity insights get-policy-group-suggestions",
+      "elisity insights get-policy-suggestion-list",
+      "elisity insights recreate-policy-suggestions",
+      "elisity insights recreate-suggestions",
+      "elisity insights reset-suggestions-to-default",
+      "elisity insights get-settings",
+      "elisity insights save-settings",
+      "elisity insights get-categories-list"
+    ]
+  },
+  {
+    "term": "Unassigned (Policy Group)",
+    "synonyms": [
+      "default group",
+      "ungrouped",
+      "uncategorized",
+      "catch-all",
+      "unassigned PG"
+    ],
+    "context": "System Policy Group where devices land when they don't match any Dynamic or Static Policy Group.",
+    "enum_value": null,
+    "domain": "policy",
+    "cli_recipes": [
+      {
+        "intent": "Find the Unassigned policy group in the PG list",
+        "command": "elisity policy get-policy-groups-json --filters '{}' --pageable '{\"page\":0,\"size\":50}' -q 'content[?name==`Unassigned`]'",
+        "notes": "Returns the PG entry whose name is exactly 'Unassigned'."
+      },
+      {
+        "intent": "List every device currently in the Unassigned PG",
+        "command": "elisity policy get-policy-group-devices <UNASSIGNED_PG_ID>",
+        "notes": "Use the id from the previous command. Surfaces devices needing classification."
+      }
+    ],
+    "related_commands": [
+      "elisity policy get-policy-groups-json",
+      "elisity policy get-policy-group-by-id",
+      "elisity policy get-policy-group-devices",
+      "elisity policy get-policy-groups-summary",
+      "elisity insights get-policy-group-suggestions"
+    ]
+  },
+  {
+    "term": "Traffic Analytics",
+    "synonyms": [
+      "traffic analysis",
+      "flow analysis",
+      "network monitoring",
+      "traffic monitoring",
+      "top talkers"
+    ],
+    "context": "CCC feature for analyzing network traffic flows, top talkers, and policy action breakdowns.",
+    "enum_value": null,
+    "domain": "flows",
+    "cli_recipes": [
+      {
+        "intent": "Top N policy groups by traffic volume",
+        "command": "elisity reporting get-top-policy-groups-by-traffic --kind ALL --top 10",
+        "notes": "Param-free aggregation across all traffic. Use --kind DENIED for blocked-only."
+      },
+      {
+        "intent": "Get the latest raw traffic record set",
+        "command": "elisity flows get-latest-data",
+        "notes": "Most recent flow batch \u2014 pair with -q to project src/dst/action."
+      },
+      {
+        "intent": "Top N policy groups by traffic volume",
+        "command": "elisity reporting get-top-policy-groups-by-traffic --kind ALL --top 10",
+        "notes": "MITRE-style top-talker view by PG."
+      },
+      {
+        "intent": "Top N IPs by denied traffic",
+        "command": "elisity reporting get-top-ips-by-traffic --kind DENIED --top 10",
+        "notes": "Top blocked IPs over the last 24h window."
+      }
+    ],
+    "related_commands": [
+      "elisity flows get-all",
+      "elisity flows get-dash-board-summary-data",
+      "elisity flows get-latest-data",
+      "elisity flows get-raw-traffic-summary",
+      "elisity flows get-pg-data",
+      "elisity flows flows-export",
+      "elisity reporting get-traffic-count",
+      "elisity reporting get-top-policy-groups-by-traffic",
+      "elisity reporting get-top-ips-by-traffic"
+    ]
+  },
+  {
+    "term": "Independent Control",
+    "synonyms": [
+      "external monitoring",
+      "third-party enforcement",
+      "external mode"
+    ],
+    "context": "Policy mode where enforcement is handled by an external system. Enum: MONITOR_EXTERNAL.",
+    "enum_value": "MONITOR_EXTERNAL",
+    "domain": "policy",
+    "cli_recipes": [
+      {
+        "intent": "Count policies in Independent Control (external) mode at the latest snapshot",
+        "command": "elisity reporting get-policy-count --monitor-mode MONITOR_EXTERNAL",
+        "notes": "Returns {dateTime, monitorMode, value}."
+      },
+      {
+        "intent": "Filter the full policy stream to only Independent Control policies",
+        "command": "elisity policy get-all-as-nd-json -q '[?enforcementState==`MONITOR_EXTERNAL`]'",
+        "notes": "JMESPath filter on enforcementState."
+      }
+    ],
+    "related_commands": [
+      "elisity reporting get-policy-count",
+      "elisity policy get-all-as-nd-json",
+      "elisity policy change-status",
+      "elisity policy update-policy"
+    ]
+  },
+  {
+    "term": "Elisity Assistant",
+    "synonyms": [
+      "AI assistant",
+      "chatbot",
+      "copilot",
+      "virtual assistant"
+    ],
+    "context": "The AI-powered chat feature in CCC for network security operations assistance.",
+    "enum_value": null,
+    "domain": "terminology-only",
+    "cli_recipes": [],
+    "note": "Elisity Assistant is a CCC web-app feature \u2014 there is no direct CLI surface. Agents using the CLI play a similar role: see docs/AGENTS.md.",
+    "related_commands": []
+  }
+]

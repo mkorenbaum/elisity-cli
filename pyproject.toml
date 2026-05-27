@@ -35,6 +35,13 @@ elisity = "elisity_cli.main:cli"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+# Ship the glossary data files inside the installed wheel so
+# `elisity glossary ...` works after `pip install .` (not just `-e .`).
+# The fallback in commands/glossary.py looks here when the repo-root
+# data/ dir is absent.
+elisity_cli = ["data/*.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # Integration tests hit a live CCC tenant. They are skipped by default;
