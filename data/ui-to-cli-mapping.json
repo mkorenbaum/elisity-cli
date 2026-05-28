@@ -24,8 +24,8 @@
       },
       {
         "intent": "Filter the full policy stream to only Simulation policies",
-        "command": "elisity policy get-all-as-nd-json -q '[?enforcementState==`MONITOR_ONLY`]'",
-        "notes": "JMESPath filter over the ndjson stream. enforcementState is the per-policy field."
+        "command": "elisity policy get-all-policies-as-nd-json -q '[?monitorMode==`MONITOR_ONLY`]'",
+        "notes": "JMESPath filter over the per-policy ndjson stream. The per-policy enforcement field is monitorMode (not enforcementState); get-all-as-nd-json returns policy SETS, not policies."
       }
     ],
     "related_commands": [
@@ -59,8 +59,8 @@
       },
       {
         "intent": "Filter the full policy stream to only Active policies",
-        "command": "elisity policy get-all-as-nd-json -q '[?enforcementState==`MONITOR_AND_ENFORCE`]'",
-        "notes": "JMESPath filter against the per-policy enforcementState field."
+        "command": "elisity policy get-all-policies-as-nd-json -q '[?monitorMode==`MONITOR_AND_ENFORCE`]'",
+        "notes": "JMESPath filter against the per-policy monitorMode field on get-all-policies-as-nd-json."
       },
       {
         "intent": "Activate a simulation policy (transition to enforce)",
@@ -684,8 +684,8 @@
       },
       {
         "intent": "Filter the full policy stream to only Independent Control policies",
-        "command": "elisity policy get-all-as-nd-json -q '[?enforcementState==`MONITOR_EXTERNAL`]'",
-        "notes": "JMESPath filter on enforcementState."
+        "command": "elisity policy get-all-policies-as-nd-json -q '[?monitorMode==`MONITOR_EXTERNAL`]'",
+        "notes": "JMESPath filter on the per-policy monitorMode field on get-all-policies-as-nd-json."
       }
     ],
     "related_commands": [

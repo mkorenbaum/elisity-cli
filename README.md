@@ -8,7 +8,7 @@ Command-line interface to the Elisity Cloud Control Center (CCC) API. Provides c
 
 ## Features
 
-- **465 commands** total (436 auto-generated from the CCC OpenAPI spec + 19 hand-coded GraphQL reporting commands + 7 CLI-native auth/config + 3 CLI-native glossary commands)
+- **466 commands** total (436 auto-generated from the CCC OpenAPI spec + 20 hand-coded GraphQL reporting commands + 7 CLI-native auth/config + 3 CLI-native glossary commands)
 - **Multi-profile configuration** — manage multiple CCC environments (prod, staging, lab)
 - **4 output formats** — JSON (default), table, YAML, CSV
 - **JMESPath filtering** — reshape and filter output with `-q` expressions
@@ -208,7 +208,7 @@ python3 tests/qa_comprehensive.py
 - [AI Agent Operating Guide](docs/AGENTS.md) — How an AI agent should run the CLI on a human's behalf
 - [Glossary Appendix](docs/glossary.md) — UI term → CLI command reference (human-readable)
 - [Configuration Reference](docs/configuration.md) — Profiles, env vars, output formats, JMESPath
-- [Command Reference](docs/command-reference.md) — All 465 commands with descriptions
+- [Command Reference](docs/command-reference.md) — All 466 commands with descriptions
 
 ## License
 

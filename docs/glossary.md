@@ -6,7 +6,7 @@ say in the UI, the official context, and the CLI commands that implement the
 concept.
 
 The data here is generated from `data/ui-to-cli-mapping.json` and reflects the
-465-command CLI surface. Synonyms are derived from the upstream
+466-command CLI surface. Synonyms are derived from the upstream
 `Elisity/ccc:product-glossary.json` — if a term you expect is missing, run
 `elisity glossary list` to see the full set.
 
@@ -35,7 +35,7 @@ elisity reporting get-policy-count --monitor-mode MONITOR_ONLY
 elisity reporting get-traffic-count --policy-status SIMULATION
 
 # Filter the full policy stream to only Simulation policies
-elisity policy get-all-as-nd-json -q '[?enforcementState==`MONITOR_ONLY`]'
+elisity policy get-all-policies-as-nd-json -q '[?monitorMode==`MONITOR_ONLY`]'
 ```
 
 ### Active
@@ -55,7 +55,7 @@ elisity reporting get-policy-count --monitor-mode MONITOR_AND_ENFORCE
 elisity reporting get-traffic-count --policy-status ACTIVE
 
 # Filter the full policy stream to only Active policies
-elisity policy get-all-as-nd-json -q '[?enforcementState==`MONITOR_AND_ENFORCE`]'
+elisity policy get-all-policies-as-nd-json -q '[?monitorMode==`MONITOR_AND_ENFORCE`]'
 
 # Activate a simulation policy (read --help first — requires --body)
 elisity policy change-status --help
@@ -75,7 +75,7 @@ Enum: `MONITOR_EXTERNAL`.
 elisity reporting get-policy-count --monitor-mode MONITOR_EXTERNAL
 
 # Filter the policy stream to Independent Control policies
-elisity policy get-all-as-nd-json -q '[?enforcementState==`MONITOR_EXTERNAL`]'
+elisity policy get-all-policies-as-nd-json -q '[?monitorMode==`MONITOR_EXTERNAL`]'
 ```
 
 ### Policy Group
@@ -165,7 +165,17 @@ elisity policy get-policy-group-devices <UNASSIGNED_PG_ID>
 > "enforcement score", "Zero Trust score", "policy deployment score"
 
 **Context:** 0-100 metric for policy coverage quality. Also referred to as Policy
-Deployment Score. Simulation policies contribute only 10% weight.
+Deployment Score. Active (enforced) policies count fully; Simulation
+(MONITOR_ONLY) policies contribute only a fraction of that weight (the exact
+ratio is tenant-configurable — read it with `get-enforcement-score-weight-settings`,
+don't assume a fixed number).
+
+**A low or zero score has more than one cause — don't assume "simulation".** A
+group scoring 0 may have *no policy at all* (nothing to enforce), only
+*simulation* policies (activate them), or *active* policies that don't cover its
+real traffic (reclassify devices / add rules). These need opposite fixes, so
+recommending "activate the simulation policies" for a no-policy group is wrong.
+Use `diagnose-low-score` to tell them apart before acting.
 
 **CLI recipes:**
 
@@ -179,7 +189,10 @@ elisity reporting get-policy-set-enforcement-score <POLICY_SET_ID>
 # Per-PG device + policy coverage breakdown
 elisity reporting get-zero-trust-metrics
 
-# Inspect the score-weighting config
+# WHY a group scores low: no-policy vs simulation vs uncovered, with a fix per row
+elisity -f table reporting diagnose-low-score
+
+# Inspect the score-weighting config (Active vs Simulation weights)
 elisity policy get-enforcement-score-weight-settings
 ```
 

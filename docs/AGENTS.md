@@ -55,6 +55,7 @@ or read [glossary.md](glossary.md).
 | "Zero Trust score" / "posture score" / "compliance score" | Policy Enforcement Score | `elisity reporting get-aggregate-enforcement-score` |
 | "Zero Trust score for policy set X" | Policy Enforcement Score | `elisity reporting get-policy-set-enforcement-score <POLICY_SET_ID>` |
 | "per-PG Zero Trust breakdown" | Policy Enforcement Score | `elisity reporting get-zero-trust-metrics` |
+| "why is the score low" / "what should I fix to improve the score" | Policy Enforcement Score | `elisity -f table reporting diagnose-low-score` |
 | "list our VENs" / "list switches" | Virtual Edge Node | `elisity topology get-virtual-edge-nodes` |
 | "VEN inventory by model" | Virtual Edge Node | `elisity reporting get-virtual-edge-nodes-count` |
 | "list Virtual Edges" | Virtual Edge | `elisity reporting get-virtual-edges-count` |
@@ -155,9 +156,52 @@ When a human asks for something using a phrase you don't immediately recognise:
    Do not act on a guess for non-trivial operations.
 
 4. **Never paraphrase a UI feature into a plausible-but-fake CLI command.**
-   The CLI has 465 commands; if a verb you imagine isn't in `--help`, it
+   The CLI has 466 commands; if a verb you imagine isn't in `--help`, it
    doesn't exist. The honesty rule is non-negotiable — fabricated commands
    waste human review cycles and damage trust.
+
+---
+
+## Diagnosing a low/zero Zero Trust score (do not guess the cause)
+
+This is the single most common reasoning error agents make on this CLI, so it
+gets its own section. When a human asks "which devices have the worst Zero Trust
+score and what should I fix?", the trap is to read a 0% score off
+`get-zero-trust-metrics` and conclude "the policies are in simulation —
+activate them." **A 0% coverage score does not tell you the cause.** It has
+three distinct root causes with *opposite* fixes:
+
+| Cause | What you'd see | Correct fix |
+|---|---|---|
+| **No policy** | the group has no policy at all | *create* a policy / check Insights suggestions / reclassify the devices — there is nothing to activate |
+| **Simulation only** | policies exist, all `MONITOR_ONLY` | activate them via `policy change-status` |
+| **Active but uncovered** | policies are already `MONITOR_AND_ENFORCE`, score still low | the group's real traffic isn't covered — reclassify catch-all devices / add rules for the uncovered flows |
+
+Recommending `policy change-status` for a *no-policy* group, or for a group
+whose policies are *already active*, is a fabricated remediation — it names a
+fix that does nothing. That violates the honesty rule.
+
+**Do not infer the cause from the score. Run the command that joins the score
+with the actual policy status:**
+
+```bash
+# One call: every low-scoring group, classified, with a per-row remediation.
+elisity -f table reporting diagnose-low-score
+
+# Worst-first, full detail (includes the `remediation` field to relay verbatim)
+elisity reporting diagnose-low-score --threshold 100
+
+# Scope to a site, e.g. the one the human named
+elisity reporting diagnose-low-score --site Hospital
+```
+
+Each row carries a `diagnosis` (`NO_POLICY`, `SIMULATION_ONLY`, `EXTERNAL_ONLY`,
+`MIXED_LOW_COVERAGE`, `ACTIVE_LOW_COVERAGE`) and a `remediation` string. Relay
+the remediation; do not substitute your own assumption. Only after
+`diagnose-low-score` says `SIMULATION_ONLY` (or `MIXED_LOW_COVERAGE`) should you
+propose `policy change-status` — and `change-status` is a state-changing verb,
+so it still needs explicit human approval (see
+[Destructive operations](#destructive-operations)).
 
 ---
 
@@ -274,6 +318,12 @@ for id in $(elisity policy get-all-as-nd-json -q '[].id' -f csv | tail -n +2); d
   echo "$score $id"
 done | sort -n | head -5
 #   → bottom 5 policy sets, ascending. The drag.
+
+# 4. WHY they drag — per-group cause + fix. Don't infer "simulation" from a low
+#    score; this joins the score with each group's real policy status.
+elisity -f table reporting diagnose-low-score --threshold 100
+#   → NO_POLICY / SIMULATION_ONLY / ACTIVE_LOW_COVERAGE per group, with a
+#     remediation string. Relay that — see "Diagnosing a low/zero Zero Trust score".
 ```
 
 ### Example 2 — "List our switches in visibility-only mode at the Boston site."

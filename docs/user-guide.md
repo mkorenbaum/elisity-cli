@@ -42,7 +42,7 @@ Out of scope for this guide:
 - Product positioning, architecture explanations, or "why microsegmentation". Those
   belong in product docs.
 - A command-by-command reference. See [Command Reference](command-reference.md) for
-  all 465 commands.
+  all 466 commands.
 - Building and deploying the CLI itself. See the repository README for development
   setup.
 
@@ -1428,7 +1428,7 @@ HTTP 403: {"error":"Forbidden","message":"User does not have required scope: pol
 - *Resource not found* — the ID you passed doesn't exist. Common after a delete
   or in cross-tenant scripts where the IDs don't match.
 - *Endpoint not enabled on this CCC version* — older CCC tenants may not have all
-  465 commands implemented. Run the corresponding `--help` to see what's available.
+  466 commands implemented. Run the corresponding `--help` to see what's available.
 
 ```text
 HTTP 404: {"error":"Not Found"}
@@ -2237,7 +2237,7 @@ code `0`.
 
 ## Appendix A: full command tree
 
-The CLI exposes 465 commands. The full reference, including parameters and return
+The CLI exposes 466 commands. The full reference, including parameters and return
 types for each, lives at:
 
 - [Command Reference](command-reference.md)
@@ -2265,7 +2265,7 @@ Usage: elisity [OPTIONS] COMMAND [ARGS]...
   Elisity CCC CLI — command-line interface to the Cloud Control Center API.
 
   Manages topology, policies, devices, connectors, AD/Entra integration,
-  traffic flows, and system operations — 465 commands across 12 groups.
+  traffic flows, and system operations — 466 commands across 12 groups.
 
   Configuration:   Set CCC_BASE_URL, CCC_CLIENT_ID, CCC_CLIENT_SECRET env
   vars, or   run 'elisity config set-profile' to store credentials.
@@ -2622,7 +2622,7 @@ single hang can stretch to ~30 seconds before failing. If a request is hanging:
 - [Getting Started](getting-started.md) — install, first profile, first commands.
 - [Configuration Reference](configuration.md) — all profile fields, env vars,
   precedence rules, security guidance.
-- [Command Reference](command-reference.md) — every one of the 465 commands with
+- [Command Reference](command-reference.md) — every one of the 466 commands with
   parameters and return shapes.
 
 This guide is workflow-first. For exact arguments on a specific command, always
@@ -2653,12 +2653,12 @@ Judgment calls made while writing this guide. Surfaced here for reviewer awarene
   guide replaces it with `service-account@your-org.example` in the displayed JSON
   blob to keep the file tenant-neutral. Other capture data (UUIDs, timestamps,
   numericIds) is preserved verbatim.
-- **Sample 18 root-help command count.** The root help text reads "465 commands"
-  (436 REST + 19 GraphQL reporting + 7 CLI-native auth/config + 3 CLI-native
+- **Sample 18 root-help command count.** The root help text reads "466 commands"
+  (436 REST + 20 GraphQL reporting + 7 CLI-native auth/config + 3 CLI-native
   glossary). Older copy in the project may reference "443" (pre-reporting),
-  "441", "436", or "462" (pre-glossary) — all stale. The guide uses 465 in prose,
-  matching what the captured help output says. Anyone updating these docs should
-  re-capture if the count changes.
+  "441", "436", "462", or "465" (pre-`diagnose-low-score`) — all stale. The guide
+  uses 466 in prose, matching what the captured help output says. Anyone updating
+  these docs should re-capture if the count changes.
 - **Sample 09 (distribution zones table).** The captured table is 19 columns wide
   and unreadable on a normal terminal. The guide does not paste the raw table;
   instead it shows the projection-with-JMESPath pattern that produces a usable

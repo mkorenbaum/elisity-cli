@@ -6,8 +6,9 @@
 > reference — see [user-guide.md](user-guide.md) section 9 for the full
 > reporting catalog.
 >
-> **462 commands** total: 436 auto-generated REST + 19 hand-coded GraphQL
-> reporting + 7 CLI-native (auth + config). 11 groups total.
+> **463 commands** total: 436 auto-generated REST + 20 hand-coded GraphQL
+> reporting + 7 CLI-native (auth + config). 11 groups total. (Excludes the 3
+> CLI-native `glossary` commands; see README for the full 466-command count.)
 
 ## Quick Find by Operation Type
 
