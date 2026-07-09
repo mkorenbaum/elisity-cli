@@ -30,8 +30,13 @@ Read this guide if you fit one of these profiles:
 The guide assumes you have:
 
 - A working `python3` (3.9 or later) and `pip` on your shell. This is the
-  `compat/python-3.9` branch — pick it only if you have a hard Python 3.9 requirement
-  (it also runs on 3.10–3.12); otherwise use `main`, which targets Python 3.10+.
+  `compat/python-3.9` branch — use it **only** where Python 3.9 is mandatory; otherwise use
+  `main`, which targets Python 3.10+ and receives dependency security fixes a 3.9 install
+  structurally cannot. This branch's `requests` pin — and, on Python 3.9, its `urllib3` pin —
+  carry three unfixed CVEs (two HIGH) whose fixes require Python 3.10+; none is reachable
+  through this CLI's code paths. See the **Security** section of `README.md`. The only
+  interpreter exercised while preparing this branch was Python 3.12; the CI matrix
+  (3.9–3.12) is the authority.
 - OAuth2 client credentials (client ID + client secret) from a CCC tenant
   administrator, with API scopes appropriate for what you intend to do.
 - Network reachability to the CCC base URL (`https://your-ccc.idp01.elisity.io` or

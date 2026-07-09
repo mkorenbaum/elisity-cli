@@ -9,7 +9,11 @@ on:
 jobs:
   pytest:
     name: pytest (py${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    # Pinned, not `ubuntu-latest`. actions/python-versions ships no 3.9 build for
+    # ubuntu-24.04's successor, while 3.10-3.13 all have one. When GitHub rolls the
+    # `latest` label, setup-python would fail to resolve 3.9 and the only leg that
+    # proves this branch's reason for existing would die silently.
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:

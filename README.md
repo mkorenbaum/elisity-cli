@@ -175,18 +175,150 @@ elisity config show
 - Network access to a CCC instance
 - OAuth2 service account credentials (client ID + secret)
 
-> **You are on the `compat/python-3.9` branch.** It exists for environments with a hard
-> Python 3.9 constraint. The CLI source is identical to `main` — only the dependency pins
-> and CI matrix differ, held at the newest releases that still support 3.9. It also runs on
-> 3.10–3.12, so it is safe to standardize on if any of your targets are stuck at 3.9.
+> **You are on the `compat/python-3.9` branch. Use it only where Python 3.9 is mandatory.**
+> Every other environment should use `main`.
 >
-> Everyone else should use `main`, which targets **Python 3.10+** and tracks current
-> dependency versions. This branch is maintained in parallel and is never merged into `main`.
+> This branch holds `requests` at its terminal 3.9-compatible release, and on Python 3.9 holds
+> `urllib3` there too. Those releases carry three unfixed CVEs that `main` does not have, and
+> on 3.9 this branch can never receive the fixes — see [Security](#security). Running it where
+> 3.9 is not a hard requirement means accepting a less secure dependency stack for no benefit.
+>
+> `src/` and `tests/` are byte-identical to `main`. The dependency pins, the CI matrix, and
+> these docs are what differ; the downgraded pins sit at the newest releases that still
+> support 3.9. This branch is maintained in parallel and is never merged into `main`.
+>
+> **The only interpreter exercised while preparing this branch was Python 3.12.** The CI
+> matrix covers 3.9, 3.10, 3.11 and 3.12 and is the authority; treat support for the other
+> three as unproven until it has run green.
+>
+> `main` targets **Python 3.10+** and tracks current dependency versions.
+
+## Security
+
+This branch exists to support Python 3.9. That carries an unavoidable cost, stated here in
+full so you can take it knowingly.
+
+### Known unfixed CVEs on this branch
+
+Supporting 3.9 requires pinning the terminal 3.9-compatible releases of two packages —
+`requests==2.32.5` on every interpreter, and `urllib3==2.6.3` on Python 3.9. Both carry
+published CVEs:
+
+| Package | Version | CVE | Severity | Applies on | Issue |
+|---|---|---|---|---|---|
+| `urllib3` | 2.6.3 | CVE-2026-44431 | HIGH | **Python 3.9 only** | `Authorization` / `Cookie` headers forwarded across origins on low-level proxied redirects |
+| `urllib3` | 2.6.3 | CVE-2026-44432 | HIGH | **Python 3.9 only** | Decompression-bomb safeguards bypassed in the streaming API |
+| `requests` | 2.32.5 | CVE-2026-25645 | MODERATE | every interpreter | Insecure temp-file reuse in `extract_zipped_paths()` |
+
+**On Python 3.9 these will never be fixed.** The fixes ship in `urllib3` 2.7.0 and `requests`
+2.33.0. Both of those releases declare `requires-python >= 3.10` — each upstream dropped 3.9
+in the same release that carried the fix. No 3.9-compatible fixed version exists, and none is
+coming. `main` installs `urllib3` 2.7.0 and `requests` 2.33.1 and is unaffected.
+
+On Python 3.10+ this branch installs the patched `urllib3` 2.7.0 (see below), so only the
+`requests` advisory applies there. That narrows the gap; it does not close it, and it is not a
+reason to run this branch on 3.10+.
+
+Downgrading further makes it worse, not better. `urllib3` 2.5.0 also resolves on 3.9 and
+predates CVE-2026-44432, but carries four HIGH CVEs of its own, three of which 2.6.3 fixes.
+2.6.3 is the minimum-exposure choice available to Python 3.9.
+
+### Why `urllib3` is constrained explicitly
+
+`urllib3` is only a transitive dependency of `requests`, and `requests` merely bounds it to
+`urllib3<3,>=1.21.1`. Left to float, the branch had no control over the most
+security-sensitive component in its tree: any future pip resolution could change its transport
+behavior silently, and a later urllib3 that still supported 3.9 could regress it unnoticed.
+
+`pyproject.toml` therefore constrains it directly, with an environment marker rather than a
+single flat pin:
+
+```toml
+"urllib3==2.6.3; python_version < '3.10'",
+"urllib3>=2.7.0,<3; python_version >= '3.10'",
+```
+
+The marker is load-bearing. A flat `urllib3==2.6.3` would have forced the vulnerable transport
+onto 3.10+ installs of this branch, which otherwise resolve the patched 2.7.0 — trading a real
+security regression for uniformity nobody asked for. The split holds Python 3.9 at its
+terminal release, where there is no alternative, and lets every newer interpreter take the
+fix. Exactly one of the two constraints is active on any given interpreter, and both satisfy
+`requests`' own `urllib3<3,>=1.21.1` bound.
+
+### Why none of the three is reachable through this CLI
+
+Each was checked against this CLI's real code paths, by reproduction rather than by reading
+the advisory text:
+
+- **CVE-2026-44431 (headers on cross-origin redirect).** The flaw lives in urllib3's
+  *low-level* `ProxyManager.connection_from_url().urlopen(..., assert_same_host=False)` path.
+  This CLI only ever uses `requests.Session`, which calls `conn.urlopen(..., redirect=False)`
+  and follows redirects itself, stripping `Authorization` and `Cookie` on host change via
+  `Session.rebuild_auth`. Driving a live cross-origin 302 against the real 3.9 stack leaked
+  the bearer token on the low-level path — reproducing the CVE — and leaked nothing on the
+  high-level path this CLI actually uses.
+- **CVE-2026-44432 (decompression bomb).** Two triggers, both closed here. The brotli trigger
+  requires the `brotli` or `brotlicffi` package, which is absent from this CLI's dependency
+  closure; without it urllib3 advertises only `Accept-Encoding: gzip,deflate`. The
+  `drain_conn()` trigger is never reached: `requests` never calls `drain_conn()`, and
+  urllib3's own call sites are gated behind `redirect=True` or an active retry policy, and
+  `requests` uses neither.
+- **CVE-2026-25645 (temp-file reuse).** `requests` does call `extract_zipped_paths()`
+  internally on every HTTPS request, but the function returns the CA-bundle path unchanged
+  when that path exists on disk — which it does under any normal `pip` or venv install. The
+  vulnerable extraction branch requires `requests` or `certifi` to live *inside a zip archive*
+  (zipapp, `.egg`, py2exe) **and** a local attacker with write access to `TMPDIR`.
+
+Unreachable is not the same as absent. A vulnerability scanner pointed at this branch will
+report all three, and it will be right to.
+
+### The condition to watch
+
+**On Python 3.9, do not install `brotli` or `brotlicffi` into the same environment as this
+CLI.** With either present, urllib3 advertises `br` in `Accept-Encoding` and enables its real
+brotli decoder, and `requests.iter_content()` already performs the chunked multi-read that
+CVE-2026-44432 needs. A CCC endpoint returning `Content-Encoding: br` would then bring the
+decompression-bomb path into scope. Absent brotli, that precondition cannot be met. This is
+the one residual condition that turns an unreachable HIGH into a reachable one, and it is
+reachable purely by installing an unrelated package alongside the CLI.
+
+On Python 3.10+ the patched urllib3 2.7.0 removes this concern.
+
+Two further conditions would extend exposure, and this CLI meets neither: packaging it as a
+zipapp, `.egg`, or py2exe bundle makes CVE-2026-25645 live; calling urllib3's low-level
+`ProxyManager` API directly makes CVE-2026-44431 live.
+
+### If you do not need Python 3.9
+
+Use `main`. It receives the dependency security fixes this branch structurally cannot.
+
+## Known differences from main
+
+`src/` and `tests/` are byte-identical to `main`, but one observable behavior still differs,
+because the pinned `click` version differs (8.1.8 here, 8.3.1 on `main`):
+
+**Invoking a command group with no subcommand exits `0` on this branch and `2` on `main`.**
+
+```bash
+elisity policy ; echo $?     # 0 on this branch, 2 on main
+```
+
+This affects the root command and all 12 groups — `auth`, `config`, `ad`, `connectors`,
+`devices`, `flows`, `glossary`, `insights`, `policy`, `reporting`, `system`, `topology` — 13
+invocations in total. The help text printed to stdout is byte-identical in both cases; only
+the exit code differs, so neither the test suite nor a help-tree walk detects it.
+
+If you script `elisity policy || die`, or otherwise branch on the exit status of a bare group
+invocation, it will behave differently depending on which branch is installed. Branch on the
+exit status of the subcommand you actually intend to run. This is deliberately not corrected
+here, because `src/` is held byte-identical to `main`.
 
 ## Dependencies
 
 - [Click](https://click.palletsprojects.com/) — CLI framework
 - [Requests](https://requests.readthedocs.io/) — HTTP client
+- [urllib3](https://urllib3.readthedocs.io/) — HTTP transport under Requests; constrained
+  explicitly on this branch rather than left to float (see [Security](#security))
 - [Tenacity](https://tenacity.readthedocs.io/) — Retry logic
 - [Rich](https://rich.readthedocs.io/) — Terminal table rendering
 - [PyYAML](https://pyyaml.org/) — YAML output and config parsing
