@@ -8,7 +8,12 @@ This guide walks you through installation, configuration, authentication, and yo
 
 ## Prerequisites
 
-- **Python 3.10 or later** (`python3 --version` to check)
+- **Python 3.9 or later** (`python3 --version` to check)
+
+> **Which branch?** These docs are the `compat/python-3.9` branch — same CLI source as
+> `main`, with dependency pins held at the newest releases that still support Python 3.9.
+> Use it only if you have a hard 3.9 requirement; it also runs on 3.10–3.12. Otherwise use
+> `main` (Python 3.10+), which tracks current dependency versions.
 - **Network access** to your Elisity CCC instance (e.g., `https://your-ccc.idp01.elisity.io`)
 - **API credentials** — an OAuth2 client ID and client secret with appropriate scopes, obtained from your CCC administrator
 
@@ -19,7 +24,7 @@ This guide walks you through installation, configuration, authentication, and yo
 ### Option A: Install from source (development)
 
 ```bash
-git clone <repo-url> elisity-cli
+git clone --branch compat/python-3.9 <repo-url> elisity-cli
 cd elisity-cli
 pip install -e .
 ```

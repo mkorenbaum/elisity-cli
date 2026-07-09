@@ -171,9 +171,17 @@ elisity config show
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.9+
 - Network access to a CCC instance
 - OAuth2 service account credentials (client ID + secret)
+
+> **You are on the `compat/python-3.9` branch.** It exists for environments with a hard
+> Python 3.9 constraint. The CLI source is identical to `main` — only the dependency pins
+> and CI matrix differ, held at the newest releases that still support 3.9. It also runs on
+> 3.10–3.12, so it is safe to standardize on if any of your targets are stuck at 3.9.
+>
+> Everyone else should use `main`, which targets **Python 3.10+** and tracks current
+> dependency versions. This branch is maintained in parallel and is never merged into `main`.
 
 ## Dependencies
 

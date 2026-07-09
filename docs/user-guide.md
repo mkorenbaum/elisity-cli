@@ -29,7 +29,9 @@ Read this guide if you fit one of these profiles:
 
 The guide assumes you have:
 
-- A working `python3` (3.10 or later) and `pip` on your shell.
+- A working `python3` (3.9 or later) and `pip` on your shell. This is the
+  `compat/python-3.9` branch — pick it only if you have a hard Python 3.9 requirement
+  (it also runs on 3.10–3.12); otherwise use `main`, which targets Python 3.10+.
 - OAuth2 client credentials (client ID + client secret) from a CCC tenant
   administrator, with API scopes appropriate for what you intend to do.
 - Network reachability to the CCC base URL (`https://your-ccc.idp01.elisity.io` or

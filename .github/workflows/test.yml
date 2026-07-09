@@ -2,9 +2,9 @@ name: tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, compat/python-3.9]
   pull_request:
-    branches: [main]
+    branches: [main, compat/python-3.9]
 
 jobs:
   pytest:
