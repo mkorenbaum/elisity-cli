@@ -8,14 +8,14 @@ version = "0.1.0"
 description = "Elisity CCC CLI — complete command-line interface to the Elisity Cloud Control Center API"
 readme = "README.md"
 license = {text = "Proprietary"}
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 authors = [
     {name = "Elisity", email = "support@elisity.com"},
 ]
 dependencies = [
-    "click==8.3.1",
-    "requests==2.33.1",
-    "tenacity==9.1.4",
+    "click==8.1.8",
+    "requests==2.32.5",
+    "tenacity==9.1.2",
     "rich==14.3.3",
     "pyyaml==6.0.3",
     "jmespath==1.1.0",
@@ -23,7 +23,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest==9.0.2",
+    "pytest==8.4.2",
     "pytest-cov==7.1.0",
     "pytest-mock==3.15.1",
     "responses==0.26.0",
