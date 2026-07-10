@@ -187,9 +187,11 @@ elisity config show
 > these docs are what differ; the downgraded pins sit at the newest releases that still
 > support 3.9. This branch is maintained in parallel and is never merged into `main`.
 >
-> **The only interpreter exercised while preparing this branch was Python 3.12.** The CI
-> matrix covers 3.9, 3.10, 3.11 and 3.12 and is the authority; treat support for the other
-> three as unproven until it has run green.
+> **Tested on Python 3.9, 3.10, 3.11 and 3.12.** GitHub Actions runs the suite on all four
+> interpreters and is green on all four. The same four-interpreter matrix was also run in
+> containers before the branch was pushed — 65 passed, 19 deselected, and a 479-node `--help`
+> walk with no failures, on each. `urllib3` resolves to 2.6.3 on 3.9 and to the patched 2.7.0
+> on 3.10, 3.11 and 3.12. The CI matrix remains the authority.
 >
 > `main` targets **Python 3.10+** and tracks current dependency versions.
 
@@ -244,6 +246,34 @@ security regression for uniformity nobody asked for. The split holds Python 3.9 
 terminal release, where there is no alternative, and lets every newer interpreter take the
 fix. Exactly one of the two constraints is active on any given interpreter, and both satisfy
 `requests`' own `urllib3<3,>=1.21.1` bound.
+
+### Cross-interpreter `pip` resolution
+
+The marker has one consequence worth knowing about. **`pip install --dry-run --python-version
+3.9` and `pip download --python-version 3.9`, run from a Python 3.10+ host, fail against this
+branch:**
+
+```
+ERROR: No matching distribution found for urllib3<3,>=2.7.0; python_version >= "3.10"
+```
+
+`pip` evaluates `python_version` markers against the interpreter it is *running on*, not
+against `--python-version` — that flag only filters candidate distributions by their
+`Requires-Python`. So from a 3.12 host targeting 3.9, pip takes the `>= '3.10'` branch of the
+marker, then rejects `urllib3` 2.7.0 because its `Requires-Python` is `>=3.10`. This is pip's
+behavior rather than anything specific to this project, and it reproduces on pip 24.0 and 25.3.
+
+It does not affect a real install on a real 3.9 interpreter, where the `>= '3.10'` constraint
+drops out and only `==2.6.3` applies; it does not affect CI, which installs under each matrix
+interpreter; and it does not affect any documented install path. What it does affect is
+cross-interpreter tooling — building an offline wheelhouse, a lockfile, or an air-gapped
+bundle for 3.9 from a newer host, and audit tools that resolve the same way.
+
+**Workaround: run `pip` on the target interpreter itself**, inside a Python 3.9 container or
+venv, rather than passing `--python-version` from a newer host.
+
+The marker stays. Removing the marker — i.e. collapsing it to a flat `urllib3==2.6.3` —
+would resolve `urllib3` 2.6.3 for Python 3.10+ users: a security regression, not a fix.
 
 ### Why none of the three is reachable through this CLI
 

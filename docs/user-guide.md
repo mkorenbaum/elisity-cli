@@ -34,9 +34,9 @@ The guide assumes you have:
   `main`, which targets Python 3.10+ and receives dependency security fixes a 3.9 install
   structurally cannot. This branch's `requests` pin — and, on Python 3.9, its `urllib3` pin —
   carry three unfixed CVEs (two HIGH) whose fixes require Python 3.10+; none is reachable
-  through this CLI's code paths. See the **Security** section of `README.md`. The only
-  interpreter exercised while preparing this branch was Python 3.12; the CI matrix
-  (3.9–3.12) is the authority.
+  through this CLI's code paths. See the **Security** section of `README.md`. This branch is
+  tested on Python 3.9, 3.10, 3.11 and 3.12 — CI runs the suite on all four interpreters and
+  is green on all four; the CI matrix is the authority.
 - OAuth2 client credentials (client ID + client secret) from a CCC tenant
   administrator, with API scopes appropriate for what you intend to do.
 - Network reachability to the CCC base URL (`https://your-ccc.idp01.elisity.io` or

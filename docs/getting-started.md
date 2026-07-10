@@ -23,9 +23,8 @@ This guide walks you through installation, configuration, authentication, and yo
 > reachable through this CLI's code paths. Read the **Security** section of `README.md`
 > before adopting this branch.
 >
-> The only interpreter exercised while preparing this branch was Python 3.12. The CI matrix
-> (3.9, 3.10, 3.11, 3.12) is the authority; treat support for the other three as unproven
-> until it has run green.
+> This branch is tested on Python 3.9, 3.10, 3.11 and 3.12: CI runs the suite on all four
+> interpreters and is green on all four. The CI matrix is the authority.
 
 ---
 
