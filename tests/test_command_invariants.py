@@ -31,6 +31,7 @@ from generate_commands import (  # noqa: E402
     HANDCODED_GROUPS,
     build_groups,
     generate_module,
+    merge_path_templates,
     render_init_module,
 )
 from tools.audit_counts import (  # noqa: E402
@@ -236,6 +237,78 @@ class TestParameterCollisions:
         assert "Use --confirm to execute this destructive operation." in module
         assert '@click.option("--confirm/--no-confirm"' in module
         assert 'params["confirm"]' in module
+
+    def test_undeclared_path_template_gets_an_argument(self):
+        """The spec's path declares {id} but omits the parameter. Without a
+        synthesized argument the f-string resolved `id` to Python's builtin and
+        sent '<built-in function id>' in the URL, at exit code 0."""
+        module = _generate_one("post", "/api/x/{id}/import/{uploadId}/cancel", [
+            {"name": "uploadId", "in": "path", "required": True,
+             "schema": {"type": "string"}},
+        ])
+        compile(module, "topology.py", "exec")
+
+        assert '@click.argument("id")' in module
+        assert '@click.argument("uploadid")' in module
+        assert "def cmd_do_thing(ctx, id, uploadid," in module
+
+    def test_no_committed_endpoint_has_an_unsubstituted_placeholder(self):
+        """Whole-tree sweep: every f-string placeholder in a generated endpoint
+        must correspond to an argument of its own function."""
+        offenders = []
+        for path in sorted(COMMANDS_DIR.glob("*.py")):
+            source = path.read_text()
+            for block in source.split("@group.command(")[1:]:
+                name = block.split('"')[1]
+                sig = re.search(r"def cmd_\w+\(([^)]*)\):", block)
+                endpoint = re.search(r'endpoint = f"([^"]*)"', block)
+                if not sig or not endpoint:
+                    continue
+                args = {a.strip() for a in sig.group(1).split(",")}
+                for placeholder in re.findall(r"\{([^}]*)\}", endpoint.group(1)):
+                    if placeholder not in args:
+                        offenders.append(f"{path.stem} {name}: {{{placeholder}}}")
+        assert offenders == [], (
+            "endpoint placeholders with no matching function argument (these "
+            "resolve against builtins or raise NameError at runtime): "
+            + ", ".join(offenders)
+        )
+
+    def test_cancel_import_builds_a_correct_url(self):
+        """Regression for the live bug — end-to-end through Click."""
+        captured = {}
+
+        class FakeClient:
+            def post(self, endpoint, data=None, params=None):
+                captured["endpoint"] = endpoint
+                return {}
+
+        import elisity_cli.context as ctxmod
+        original = ctxmod.CliContext.ensure_client
+        ctxmod.CliContext.ensure_client = lambda self: FakeClient()
+        try:
+            result = CliRunner().invoke(
+                cli, ["connectors", "cancel-import", "CONN42", "UPLOAD123"]
+            )
+        finally:
+            ctxmod.CliContext.ensure_client = original
+
+        assert result.exit_code == 0, result.output
+        assert captured["endpoint"] == (
+            "/api/identity-graph/v1/custom-connector/CONN42/import/UPLOAD123/cancel"
+        )
+
+    def test_unusable_path_template_is_a_generation_error(self):
+        """A template with no usable name must fail generation, not emit
+        code that cannot compile."""
+        with pytest.raises(ValueError, match="no usable name"):
+            merge_path_templates("/api/x/{}/y", [])
+
+    def test_declared_path_param_absent_from_template_is_kept(self):
+        merged = merge_path_templates("/api/x/{id}", [
+            ("id", "str", ""), ("orphan", "str", ""),
+        ])
+        assert [m[0] for m in merged] == ["id", "orphan"]
 
     def test_every_committed_module_compiles(self):
         """Net that catches any collision class not enumerated above."""

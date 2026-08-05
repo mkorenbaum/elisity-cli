@@ -237,8 +237,18 @@ def resolve_parameter_names(method: str, path_params: list, query_params: list,
 
 
 def make_command_name(method: str, op_id: str, path: str, tag: str) -> str:
-    """Generate a human-friendly command name from operation context."""
-    name = sanitize_name(op_id) if op_id else f"{method.lower()}-{sanitize_name(path.split('/')[-1])}"
+    """Generate a human-friendly command name from operation context.
+
+    Falls back to method + last path segment when there is no operationId, or
+    when the operationId sanitizes to nothing (e.g. an id of only punctuation).
+    Without that second check the command would be registered under an empty
+    name and be impossible to invoke — a silently lost command.
+    """
+    name = sanitize_name(op_id) if op_id else ""
+    if not name:
+        name = f"{method.lower()}-{sanitize_name(path.split('/')[-1])}"
+    if not name.strip("-"):
+        name = f"{method.lower()}-{sanitize_name(path) or 'unnamed'}"
     return name
 
 
@@ -265,6 +275,48 @@ def extract_params(op: dict) -> tuple:
     return path_params, query_params
 
 
+def merge_path_templates(path: str, path_params: list) -> list:
+    """Ensure every `{placeholder}` in the path has a corresponding argument.
+
+    OpenAPI requires each path-template expression to be backed by a declared
+    path parameter, but the CCC spec does not always comply. Example from the
+    26.3 baseline:
+
+        POST /api/identity-graph/v1/custom-connector/{id}/import/{uploadId}/cancel
+
+    declares only `uploadId`. With `{id}` left unsubstituted, the generated
+    f-string resolved it against Python's builtin `id`, producing
+
+        /api/identity-graph/v1/custom-connector/<built-in function id>/import/...
+
+    — a nonsense URL sent with exit code 0. Synthesizing the missing argument
+    is not inventing an endpoint: the placeholder is literally in the spec's
+    path. Parameters are returned in path order so the positional Click
+    arguments read left-to-right like the URL.
+    """
+    declared = {p[0]: p for p in path_params}
+    ordered, seen = [], set()
+
+    for name in re.findall(r"\{([^}]*)\}", path):
+        if not sanitize_name(name):
+            raise ValueError(
+                f"path template {{{name}}} in {path} has no usable name — "
+                "cannot generate a safe argument for it"
+            )
+        if name in seen:
+            continue
+        seen.add(name)
+        if name in declared:
+            ordered.append(declared[name])
+        else:
+            ordered.append((name, "str", f"Path parameter (undeclared in spec) — {name}"))
+
+    # Keep any declared path param that the template does not reference, rather
+    # than silently dropping it.
+    ordered.extend(p for p in path_params if p[0] not in seen)
+    return ordered
+
+
 def has_request_body(op: dict) -> bool:
     return bool(op.get("requestBody"))
 
@@ -282,6 +334,7 @@ def produces_ndjson(op: dict) -> bool:
 def generate_command(method: str, path: str, op: dict, cmd_name: str) -> str:
     """Generate a single Click command function."""
     path_params, query_params = extract_params(op)
+    path_params = merge_path_templates(path, path_params)
     has_body = has_request_body(op)
     is_ndjson = produces_ndjson(op)
     raw_summary = op.get("summary", op.get("description", "")) or f"{method.upper()} {path}"

@@ -189,11 +189,12 @@ def cmd_import_file(ctx, id, mode, body_data, body_file, cmd_fmt, cmd_query):
     render(result, ctx.format, ctx.query)
 
 @group.command("cancel-import")
+@click.argument("id")
 @click.argument("uploadid")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
-def cmd_cancel_import(ctx, uploadid, cmd_fmt, cmd_query):
+def cmd_cancel_import(ctx, id, uploadid, cmd_fmt, cmd_query):
     """Cancel ongoing import for a custom connector"""
     if cmd_fmt:
         ctx.format = cmd_fmt
