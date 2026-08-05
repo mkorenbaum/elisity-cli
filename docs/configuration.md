@@ -318,7 +318,7 @@ automatically unwrapped from the `content` array.
 Suitable for import into spreadsheets or processing with `awk`/`cut`:
 
 ```bash
-elisity -f csv devices list-devices > devices.csv
+elisity -f csv devices get-devices-view --body '{"pageable":{"page":0,"size":500}}' > devices.csv
 ```
 
 ---
@@ -339,7 +339,7 @@ elisity -q '[].name' topology get-all-sites-v2
 **Filter by field value:**
 
 ```bash
-elisity -q "[?status=='ACTIVE']" devices list-devices
+elisity -q "[?status=='ACTIVE']" devices get-devices-view --body '{"pageable":{"page":0,"size":500}}'
 ```
 
 **First N items:**
@@ -375,7 +375,7 @@ elisity -q '{names: [].name, total: length(@)}' topology get-all-sites-v2
 **Nested field access:**
 
 ```bash
-elisity -q '[].config.vlanId' connectors list-connectors
+elisity -q '[].config.vlanId' connectors read-all-connectors
 ```
 
 **Sort by field:**
@@ -387,7 +387,7 @@ elisity -q 'sort_by(@, &name)' topology get-all-sites-v2
 **Combine filter and projection:**
 
 ```bash
-elisity -q "[?status=='ACTIVE'].{name: name, id: id}" devices list-devices
+elisity -q "[?status=='ACTIVE'].{name: name, id: id}" devices get-devices-view --body '{"pageable":{"page":0,"size":500}}'
 ```
 
 **Get the first matching item:**
@@ -405,7 +405,7 @@ elisity -q "[?description != null].name" topology get-all-sites-v2
 **Multi-select with computed fields:**
 
 ```bash
-elisity -q '{active: length([?status==`ACTIVE`]), total: length(@)}' devices list-devices
+elisity -q '{active: length([?status==`ACTIVE`]), total: length(@)}' devices get-devices-view --body '{"pageable":{"page":0,"size":500}}'
 ```
 
 ### Error Handling
@@ -494,7 +494,7 @@ export CCC_CLIENT_ID="${CCC_CLIENT_ID:?missing}"
 export CCC_CLIENT_SECRET="${CCC_CLIENT_SECRET:?missing}"
 
 elisity auth test
-elisity -f csv devices list-devices > inventory.csv
+elisity -f csv devices get-devices-view --body '{"pageable":{"page":0,"size":500}}' > inventory.csv
 ```
 
 ### Cross-Environment Comparison

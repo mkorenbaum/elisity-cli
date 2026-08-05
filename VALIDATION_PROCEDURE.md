@@ -86,39 +86,39 @@ elisity policy --help 2>&1 | grep -c "^  "
 
 ```bash
 # TOPOLOGY
-elisity topology get-sites-v2
-elisity topology get-distribution-zones
-elisity topology get-virtual-edges
+elisity topology get-all-sites-v2
+elisity topology get-all-distribution-zones
+elisity topology get-virtual-edge
 elisity topology get-virtual-edge-nodes
-elisity topology get-flow-exporters
+elisity topology get-all-flow-exporter
 
 # POLICY
 elisity policy get-all-as-nd-json
 elisity policy get-all-policies-as-nd-json
 elisity policy get-policy-groups-json
-elisity policy get-security-profiles-as-nd-json
+elisity policy get-all-security-profiles-as-nd-json
 
 # DEVICES
-elisity devices get-devices-count
-elisity devices get-enrichment-order
+elisity devices get-device-header-data
+elisity devices get-enrichment-order-dto
 
 # CONNECTORS
-elisity connectors get-connectivity-status
-elisity connectors get-all-connector-configs
+elisity connectors read-all-connectors
+elisity connectors read-all-connector-configurations
 
 # AD
-elisity ad get-all-ad-connector-configs
+elisity ad get-connectors
 elisity ad get-configuration-value --name "user.preemption.enabled"
 
 # FLOWS
-elisity flows get-noise-definitions
+elisity flows get-noise-definition
 elisity flows get-available-ports
 
 # INSIGHTS
 elisity insights get-settings
 
 # SYSTEM
-elisity system get-all-task-specs
+elisity system list-specs
 ```
 
 ---
@@ -129,16 +129,16 @@ Pick any command that returns data (e.g., `topology get-sites-v2`):
 
 ```bash
 # 5a. JSON (default)
-elisity topology get-sites-v2
+elisity topology get-all-sites-v2
 
 # 5b. Table
-elisity topology get-sites-v2 -f table
+elisity topology get-all-sites-v2 -f table
 
 # 5c. YAML
-elisity topology get-sites-v2 -f yaml
+elisity topology get-all-sites-v2 -f yaml
 
 # 5d. CSV
-elisity topology get-sites-v2 -f csv
+elisity topology get-all-sites-v2 -f csv
 ```
 
 ---
@@ -147,25 +147,25 @@ elisity topology get-sites-v2 -f csv
 
 ```bash
 # 6a. Extract labels only
-elisity topology get-sites-v2 -q "[].label"
+elisity topology get-all-sites-v2 -q "[].label"
 
 # 6b. Select specific fields
-elisity topology get-sites-v2 -q "[].{name: label, id: id}"
+elisity topology get-all-sites-v2 -q "[].{name: label, id: id}"
 
 # 6c. Array slice (first 2)
-elisity topology get-sites-v2 -q "[0:2]"
+elisity topology get-all-sites-v2 -q "[0:2]"
 
 # 6d. Nested content extraction (paginated endpoint)
 elisity policy get-policy-groups-json -q "content[].name"
 
 # 6e. Single value
-elisity topology get-sites-v2 -q "[0].label"
+elisity topology get-all-sites-v2 -q "[0].label"
 
 # 6f. Length function
-elisity topology get-sites-v2 -q "length([*])"
+elisity topology get-all-sites-v2 -q "length([*])"
 
 # 6g. Command-level -q flag
-elisity devices get-devices-count -q "count"
+elisity devices get-device-header-data -q "count"
 ```
 
 ---
@@ -254,7 +254,7 @@ elisity devices get-devices-view --body 'not-json'
 # Expected: JSON parse error
 
 # 10c. Invalid format choice
-elisity topology get-sites-v2 -f xml
+elisity topology get-all-sites-v2 -f xml
 # Expected: "Invalid value for '-f'"
 
 # 10d. Nonexistent body-file

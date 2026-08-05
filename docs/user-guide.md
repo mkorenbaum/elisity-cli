@@ -446,8 +446,8 @@ A **device** is anything the system has classified — a workstation, an IoT cam
 medical device, a server. Devices live underneath sites and policy groups.
 
 ```bash
-# Total device count
-elisity devices get-device-count
+# Total device count (renamed from get-device-count in CCC 26.7)
+elisity devices get-device-header-data
 
 # Paginated browsing
 elisity devices get-devices-view --body '{"pageable":{"page":0,"size":10}}'
@@ -1006,8 +1006,9 @@ pattern is the same as everywhere else:
 # Paginated — uses query-parameter flags, not a body
 elisity ad get-entra-users --page 0 --size 50
 
-# Specific user by SID + domain (the way CCC stores AD identity)
-elisity ad get-user-by-sid-and-domain <DOMAIN> <SID>
+# Filter the users view by SID (CCC 26.7 removed get-user-by-sid-and-domain)
+elisity ad get-users-view --body '{"pageable":{"page":0,"size":50}}' \
+  -q "[?sid=='<SID>' && domain=='<DOMAIN>']"
 
 # Lookup by Entra user object id (Entra-only)
 elisity ad get-entra-users -q "[?id=='<entra-user-id>']"
@@ -1352,7 +1353,7 @@ elisity topology get-all-distribution-zones > "$SNAPSHOT_DIR/zones.json"
 elisity topology get-virtual-edge-get       > "$SNAPSHOT_DIR/ves.json"
 elisity topology get-virtual-edge-nodes     > "$SNAPSHOT_DIR/vens.json"
 elisity policy   get-all-as-nd-json > "$SNAPSHOT_DIR/policy-sets.json"
-elisity policy   get-all-policy-groups      > "$SNAPSHOT_DIR/policy-groups.json"
+elisity policy   get-policy-groups-json     > "$SNAPSHOT_DIR/policy-groups.json"
 
 echo "Snapshot written to $SNAPSHOT_DIR"
 ```
@@ -1692,22 +1693,27 @@ EOF
 elisity reporting query --body-file /tmp/q.json
 ```
 
-#### The legacy enforcement-score REST endpoint
+#### The legacy enforcement-score REST endpoint — removed in CCC 26.7
 
-CCC also has an older per-policy-set "enforcement score" REST endpoint:
+CCC 26.3 had an older per-policy-set "enforcement score" REST endpoint:
 
 ```
-GET /api/policy/v1/enforcement-score/{policySetId}
+GET /api/policy/v1/enforcement-score/{policySetId}         # gone in 26.7
+GET /api/policy/v1/enforcement-score/settings              # gone in 26.7
 ```
 
-This is the auto-generated `elisity policy get-enforcement-score <POLICY_SET_ID>`
-command. On many tenants (older CCC versions, demo tenants, feature-flagged
-deployments) it returns `404 Client Error: Not Found`. The GraphQL
+Both paths were dropped from the 26.7 spec, so `policy get-enforcement-score`
+and `policy get-enforcement-score-weight-settings` no longer exist. The GraphQL
 `reporting` endpoint above is the authoritative source for live Zero Trust
-scores; use the REST endpoint only when you need its specific weighted-score
-schema. The per-policy-set fields on `policy get-all-as-nd-json`
-(`deviceCoverage`, `policyCoverage`) are also a usable fallback for
-broad posture summaries.
+scores.
+
+`policy get-coverage-weight-settings` (`GET /api/policy/v1/coverage/settings`,
+"Get settings for Coverage Weights", new in 26.7) is the closest surviving
+surface for the weighting config — confirm it carries the Active-vs-Simulation
+ratio you are after before relying on it, since CCC did not document the two as
+equivalent. The per-policy-set fields on `policy get-all-as-nd-json`
+(`deviceCoverage`, `policyCoverage`) remain a usable fallback for broad posture
+summaries.
 
 ### 10. Flow search
 

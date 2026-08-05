@@ -162,8 +162,10 @@ elisity topology get-virtual-edge
 ### Get device count
 
 ```bash
-elisity devices get-device-count
+elisity devices get-device-header-data
 ```
+
+(CCC 26.7 renamed this command from `get-device-count`.)
 
 ### List policy sets
 

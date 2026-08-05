@@ -167,7 +167,7 @@ elisity policy get-policy-group-devices <UNASSIGNED_PG_ID>
 **Context:** 0-100 metric for policy coverage quality. Also referred to as Policy
 Deployment Score. Active (enforced) policies count fully; Simulation
 (MONITOR_ONLY) policies contribute only a fraction of that weight (the ratio is
-tenant-configurable and CCC 26.7 removed the endpoint that read it — see the
+tenant-configurable and CCC 26.7 replaced the endpoint that read it — see the
 note below — so don't assume a fixed number).
 
 **A low or zero score has more than one cause — don't assume "simulation".** A
@@ -203,12 +203,15 @@ elisity -f table \
 #   MONITOR_AND_ENFORCE = active but uncovered
 ```
 
-> **Removed in CCC 26.7.** `policy get-enforcement-score-weight-settings` and
-> `policy get-enforcement-score` are gone from the spec, and
+> **Removed in CCC 26.7.** `policy get-enforcement-score` and
+> `policy get-enforcement-score-weight-settings` are gone from the spec (both
+> `/api/policy/v1/enforcement-score/*` paths were dropped), and
 > `reporting diagnose-low-score` — which did the two-step above in one call —
 > was removed with them because CCC 26.7 deleted the two coverage fields it
-> filtered on. The score-weight ratio is no longer readable from the CLI; read
-> it in the CCC UI.
+> filtered on. For the weighting config, `policy get-coverage-weight-settings`
+> (`/api/policy/v1/coverage/settings`, new in 26.7) is the closest surviving
+> surface; confirm it carries the Active-vs-Simulation ratio before relying on
+> it — CCC did not document the two as equivalent.
 
 ---
 
@@ -416,8 +419,8 @@ policy action breakdowns.
 # Dashboard summary cards (totals, allowed vs denied)
 elisity flows get-dash-board-summary-data
 
-# Latest raw flow batch
-elisity flows get-latest-data
+# Raw flow records (CCC 26.7 removed get-latest-data)
+elisity flows get-traffic-record
 
 # Top N policy groups by traffic
 elisity reporting get-top-policy-groups-by-traffic --kind ALL --top 10

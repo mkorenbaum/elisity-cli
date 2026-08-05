@@ -377,13 +377,29 @@ spec:
 | `devices devices-aggregate` | Get device aggregate counts |
 | `devices get-devices-view` | Paginated device listing |
 | `policy lookup` | Resolve a batch of label IDs to metadata |
+| `policy bulk-impact` | Aggregated impact for several labels — a read, despite the `bulk-` prefix |
+| `policy lookup-network`, `lookup-network-export` | Assets expected to match a Network Policy Group |
+| `policy lookup-dynamic`, `lookup-dynamic-totals`, `lookup-dynamic-export` | Assets expected to match a Dynamic Policy Group |
+| `policy lookup-evaluation-endpoint` | Evaluation-endpoint IP lookup |
+| `policy evaluate-policy`, `evaluate-policy-export` | Evaluate policy against a payload and return / export the result |
+| `policy evaluate-policy-group-for-device` | Which policy group a given device would classify into |
 | `policy preview-operation` | Preview the scope of a matrix operation — explicitly a dry run |
-| `policy validate-*`, `connectors validate-*` | Validate a payload without applying it |
-| `flows traffic-record-export` | Export traffic records as CSV |
+| `policy validate-*`, `connectors validate-*`, `topology validate-*`, `devices validate-permissions-*` | Validate a payload without applying it |
+| `topology validate-virtual-edge-bulk-delete`, `validate-virtual-edge-node-bulk-delete` | Report what a bulk delete WOULD do. Read-only, and deliberately not `--confirm`-gated |
+| `insights *-preview` (`day0`/`day7`/`day15`/`day30`/`all-workflows`, `post-policy-group-suggestions-preview`) | Preview a workflow or suggestion set without applying it |
+| `flows traffic-record-export`, `flows flows-export` | Export traffic records / flow data as CSV |
 | `devices generate-trust-policy` | Render the IAM trust-policy JSON for the operator to apply in AWS |
 
 Anything not in this table gets the rule of thumb. When a new command appears
 and you cannot tell, treat it as destructive and ask.
+
+**The direction that matters holds, and is tested.** Of the 375 state-changing-by-verb
+commands, 39 are classified safe by the prefix rule above, and every one of them is
+genuinely a read — no destructive command is misclassified as safe
+(`tests/test_command_invariants.py::TestConfirmGate::test_the_safe_prefix_rule_never_clears_a_destructive_command`).
+The table is an allowlist and is deliberately incomplete in the other direction:
+missing an entry costs you an approval round you did not need, which is the
+error worth making.
 
 ---
 

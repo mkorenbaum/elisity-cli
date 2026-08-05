@@ -15,7 +15,7 @@
       {
         "intent": "Count policies currently in Simulation (monitor-only) mode for the latest snapshot",
         "command": "elisity reporting get-policy-count --monitor-mode MONITOR_ONLY",
-        "notes": "Single GraphQL call \u2014 returns {dateTime, monitorMode, value}. Use --site to scope to one or more sites."
+        "notes": "Single GraphQL call — returns {dateTime, monitorMode, value}. Use --site to scope to one or more sites."
       },
       {
         "intent": "List traffic that hit policies in Simulation mode over the last 24h",
@@ -50,7 +50,7 @@
       {
         "intent": "Count policies currently in Active (monitor-and-enforce) mode for the latest snapshot",
         "command": "elisity reporting get-policy-count --monitor-mode MONITOR_AND_ENFORCE",
-        "notes": "Single GraphQL call \u2014 returns {dateTime, monitorMode, value}."
+        "notes": "Single GraphQL call — returns {dateTime, monitorMode, value}."
       },
       {
         "intent": "List traffic that hit Active policies over the last 24h",
@@ -136,7 +136,7 @@
       {
         "intent": "List all security profiles (one JSON object per line)",
         "command": "elisity policy get-all-security-profiles-as-nd-json",
-        "notes": "Streaming ndjson \u2014 combine with -q to project a subset of fields."
+        "notes": "Streaming ndjson — combine with -q to project a subset of fields."
       },
       {
         "intent": "Read a single security profile",
@@ -146,7 +146,7 @@
       {
         "intent": "Find every policy referencing a given security profile",
         "command": "elisity policy get-policies-for-security-profile <SECURITY_PROFILE_ID>",
-        "notes": "Useful before editing or deleting a profile \u2014 surfaces blast radius."
+        "notes": "Useful before editing or deleting a profile — surfaces blast radius."
       }
     ],
     "related_commands": [
@@ -218,21 +218,21 @@
       {
         "intent": "Per-policy-group device + policy coverage breakdown",
         "command": "elisity reporting get-zero-trust-metrics",
-        "notes": "Returns avgDeviceCoverage + avgPolicyCoverage per (site, PG, snapshot). The matrix behind the headline score."
+        "notes": "Returns the zeroTrustMetrics rows for the snapshot. CCC 26.7 deleted the flat avgDeviceCoverage / avgPolicyCoverage fields; the coverage numbers now arrive nested as policyDeploymentMetrics.{deviceCoverage, policyDeviceCoverage}. Units and row grain of the new fields are not confirmed against a live tenant — re-check any threshold written against the old 0-100 scale."
       },
       {
-        "intent": "Show the weights used to compute the Policy Enforcement Score",
-        "command": "elisity policy get-enforcement-score-weight-settings",
-        "notes": "Returns the weights config (Simulation policies contribute ~10%)."
+        "intent": "Explain WHY the score is low, per policy group",
+        "command": "elisity -q '[?srcId==`PG_ID` || dstId==`PG_ID`].{name: name, mode: monitorMode, disabled: disabled}' -f table policy get-all-policies-as-nd-json",
+        "notes": "Two steps: take policyGroupId from `reporting get-zero-trust-metrics`, then read the monitorMode of the policies referencing it. No rows = no policy; all MONITOR_ONLY = simulation; any MONITOR_AND_ENFORCE = active but uncovered. Do not infer the cause from the score alone. `reporting diagnose-low-score` did this in one call and was removed in CCC 26.7 — it filtered on the two deleted coverage fields."
       }
     ],
     "related_commands": [
       "elisity reporting get-aggregate-enforcement-score",
       "elisity reporting get-zero-trust-metrics",
-      "elisity policy get-enforcement-score",
-      "elisity policy get-enforcement-score-weight-settings",
+      "elisity policy get-all-policies-as-nd-json",
       "elisity reporting get-site-kpis"
-    ]
+    ],
+    "note": "CCC 26.7 removed the REST endpoints `policy get-enforcement-score` and `policy get-enforcement-score-weight-settings`, and the GraphQL fields behind `reporting get-policy-set-enforcement-score` and `reporting diagnose-low-score`. The enforcement score is now only available through the surviving GraphQL `reporting` commands."
   },
   {
     "term": "Security Level (SL1-SL4)",
@@ -254,7 +254,7 @@
       {
         "intent": "Discover which device attribute carries Security Level (per-tenant naming may vary)",
         "command": "elisity devices read-all-layer-instances-specification",
-        "notes": "Lists every device-attribute layer. Look for an attribute named like 'security_level' or 'iec_62443' \u2014 Security Level is modeled as a device attribute, not a top-level field."
+        "notes": "Lists every device-attribute layer. Look for an attribute named like 'security_level' or 'iec_62443' — Security Level is modeled as a device attribute, not a top-level field."
       },
       {
         "intent": "List the values currently in use for a given attribute (e.g. SL1..SL4)",
@@ -289,12 +289,12 @@
       {
         "intent": "Count Virtual Edges for the latest snapshot",
         "command": "elisity reporting get-virtual-edges-count",
-        "notes": "Single value per snapshot \u2014 the headline VE count."
+        "notes": "Single value per snapshot — the headline VE count."
       },
       {
         "intent": "Export every Virtual Edge to JSON",
         "command": "elisity topology export-virtual-edges",
-        "notes": "Bulk export \u2014 useful for inventory or backup before edits."
+        "notes": "Bulk export — useful for inventory or backup before edits."
       }
     ],
     "related_commands": [
@@ -339,7 +339,7 @@
       {
         "intent": "Export every VEN to JSON",
         "command": "elisity topology export-virtual-edge-nodes",
-        "notes": "Bulk export \u2014 useful for inventory or backup before edits."
+        "notes": "Bulk export — useful for inventory or backup before edits."
       }
     ],
     "related_commands": [
@@ -371,7 +371,7 @@
       {
         "intent": "List all VENs and inspect their mode field to find visibility-only ones",
         "command": "elisity topology get-virtual-edge-nodes",
-        "notes": "Visibility-only is a VEN deployment mode \u2014 inspect each VEN's mode/role attribute. Per-tenant attribute names vary; use `-q` to project once you know the field name."
+        "notes": "Visibility-only is a VEN deployment mode — inspect each VEN's mode/role attribute. Per-tenant attribute names vary; use `-q` to project once you know the field name."
       },
       {
         "intent": "Get a single VEN with full detail (mode, interfaces, registration)",
@@ -450,7 +450,7 @@
     "enum_value": null,
     "domain": "terminology-only",
     "cli_recipes": [],
-    "note": "CCC is the platform the CLI talks to \u2014 there is no single CLI command that represents 'CCC'. To verify CLI connectivity to a specific CCC tenant use `elisity auth test`; to inspect the active connection use `elisity config show`.",
+    "note": "CCC is the platform the CLI talks to — there is no single CLI command that represents 'CCC'. To verify CLI connectivity to a specific CCC tenant use `elisity auth test`; to inspect the active connection use `elisity config show`.",
     "related_commands": [
       "elisity auth test",
       "elisity auth token",
@@ -480,7 +480,7 @@
       {
         "intent": "Get a paginated devices view (IdentityGraph contents)",
         "command": "elisity devices get-devices-view --body '{\"pageable\":{\"page\":0,\"size\":50}}'",
-        "notes": "Body pagination is required \u2014 see Common pitfalls in docs/user-guide.md."
+        "notes": "Body pagination is required — see Common pitfalls in docs/user-guide.md."
       },
       {
         "intent": "Get device counts broken out by source connector",
@@ -490,7 +490,7 @@
       {
         "intent": "Tenant-wide online/offline device count",
         "command": "elisity reporting get-device-count",
-        "notes": "Single GraphQL call \u2014 much cheaper than paginating get-devices-view."
+        "notes": "Single GraphQL call — much cheaper than paginating get-devices-view."
       }
     ],
     "related_commands": [
@@ -524,12 +524,12 @@
       {
         "intent": "List policy group classification suggestions",
         "command": "elisity insights get-policy-group-suggestions",
-        "notes": "PG-classification suggestions \u2014 the most common adjudication surface."
+        "notes": "PG-classification suggestions — the most common adjudication surface."
       },
       {
         "intent": "Accept or reject (update) a suggestion",
         "command": "elisity insights update-suggestion --help",
-        "notes": "Run --help to see the required body shape; status field flips PENDING \u2192 ACCEPTED or REJECTED."
+        "notes": "Run --help to see the required body shape; status field flips PENDING → ACCEPTED or REJECTED."
       }
     ],
     "related_commands": [
@@ -563,12 +563,12 @@
       {
         "intent": "List policy-activation suggestions",
         "command": "elisity insights get-policy-suggestion-list",
-        "notes": "Policies Insights recommends activating (transition Simulation \u2192 Active)."
+        "notes": "Policies Insights recommends activating (transition Simulation → Active)."
       },
       {
         "intent": "Re-run the policy-suggestion pipeline",
         "command": "elisity insights recreate-policy-suggestions",
-        "notes": "Forces Insights to recompute. Use sparingly \u2014 it kicks off a heavy job."
+        "notes": "Forces Insights to recompute. Use sparingly — it kicks off a heavy job."
       },
       {
         "intent": "Inspect Insights engine settings",
@@ -639,9 +639,9 @@
         "notes": "Param-free aggregation across all traffic. Use --kind DENIED for blocked-only."
       },
       {
-        "intent": "Get the latest raw traffic record set",
-        "command": "elisity flows get-latest-data",
-        "notes": "Most recent flow batch \u2014 pair with -q to project src/dst/action."
+        "intent": "Get the raw traffic record set",
+        "command": "elisity flows get-traffic-record",
+        "notes": "POST-backed query over raw flow records; pair with -q to project src/dst/action. Replaces get-latest-data, removed in CCC 26.7."
       },
       {
         "intent": "Top N policy groups by traffic volume",
@@ -655,9 +655,8 @@
       }
     ],
     "related_commands": [
-      "elisity flows get-all",
+      "elisity flows get-traffic-record",
       "elisity flows get-dash-board-summary-data",
-      "elisity flows get-latest-data",
       "elisity flows get-raw-traffic-summary",
       "elisity flows get-pg-data",
       "elisity flows flows-export",
@@ -707,7 +706,210 @@
     "enum_value": null,
     "domain": "terminology-only",
     "cli_recipes": [],
-    "note": "Elisity Assistant is a CCC web-app feature \u2014 there is no direct CLI surface. Agents using the CLI play a similar role: see docs/AGENTS.md.",
+    "note": "Elisity Assistant is a CCC web-app feature — there is no direct CLI surface. Agents using the CLI play a similar role: see docs/AGENTS.md.",
     "related_commands": []
+  },
+  {
+    "term": "Cloud Workload",
+    "synonyms": [
+      "workload",
+      "cloud asset",
+      "ec2 instance",
+      "cloud instance",
+      "vm workload"
+    ],
+    "context": "Cloud compute asset tracked in the IdentityGraph alongside devices, added in CCC 26.7. Workloads carry the same STATIC attribute layer as devices. Served under /api/identity-graph/workloads.",
+    "domain": "devices",
+    "cli_recipes": [
+      {
+        "intent": "List workloads",
+        "command": "elisity devices get-workloads-view",
+        "notes": "POST-backed paginated query; takes a filter body like get-devices-view. Read-only despite the POST."
+      },
+      {
+        "intent": "Get aggregate workload counts",
+        "command": "elisity devices get-workload-aggregate",
+        "notes": "Counts grouped by attribute — the workload equivalent of the device aggregate."
+      },
+      {
+        "intent": "Get a single workload by ID",
+        "command": "elisity devices get-workload-details <id>"
+      }
+    ],
+    "related_commands": [
+      "elisity devices get-workloads-view",
+      "elisity devices get-workload-count",
+      "elisity devices create-workload",
+      "elisity devices update-workload",
+      "elisity devices update-workload-interface",
+      "elisity policy get-policy-group-workloads"
+    ]
+  },
+  {
+    "term": "Workload Discovery",
+    "synonyms": [
+      "cloud discovery",
+      "aws discovery",
+      "ec2 discovery",
+      "cloud onboarding"
+    ],
+    "context": "CCC 26.7 flow that discovers cloud workloads through a cloud connector. AWS onboarding mints an external ID and a trust policy for an IAM role, then discovery enumerates EC2 instances.",
+    "domain": "devices",
+    "cli_recipes": [
+      {
+        "intent": "Get the IAM trust policy JSON to apply in AWS",
+        "command": "elisity devices generate-trust-policy",
+        "notes": "Read-only — renders the document for an operator to apply in AWS. Pair with generate-external-id."
+      },
+      {
+        "intent": "Discover EC2 workloads for an existing connector",
+        "command": "elisity devices discover-ec2workloads <connectorId>",
+        "notes": "State-changing: triggers real discovery work. Get human approval first."
+      },
+      {
+        "intent": "Check the AWS permissions are sufficient",
+        "command": "elisity devices validate-permissions-existing <connectorId> <endpointId>"
+      }
+    ],
+    "related_commands": [
+      "elisity devices generate-external-id",
+      "elisity devices generate-trust-policy",
+      "elisity devices get-permissions-policy",
+      "elisity devices discover-ec2workloads",
+      "elisity devices list-available-regions-existing",
+      "elisity devices validate-permissions-existing"
+    ]
+  },
+  {
+    "term": "Custom Application",
+    "synonyms": [
+      "application definition",
+      "custom app",
+      "app definition"
+    ],
+    "context": "User-defined application definition referenced by policy rules, added as a first-class surface in CCC 26.7. Served under /api/flows/v1/applications; each application owns one or more definitions.",
+    "domain": "policy",
+    "cli_recipes": [
+      {
+        "intent": "List custom applications",
+        "command": "elisity policy list-applications"
+      },
+      {
+        "intent": "Validate an application payload before creating it",
+        "command": "elisity policy validate-application --body '{...}'",
+        "notes": "Read-only — validates without applying."
+      },
+      {
+        "intent": "Create a custom application",
+        "command": "elisity policy create-application --body '{...}'",
+        "notes": "State-changing — get human approval first."
+      }
+    ],
+    "related_commands": [
+      "elisity policy list-applications",
+      "elisity policy get-application",
+      "elisity policy create-application",
+      "elisity policy update-application",
+      "elisity policy delete-application",
+      "elisity policy add-definition"
+    ]
+  },
+  {
+    "term": "Snapshot",
+    "synonyms": [
+      "report snapshot",
+      "scheduled report",
+      "snapshot schedule",
+      "pdf report"
+    ],
+    "context": "Point-in-time reporting artifact introduced in CCC 26.7, optionally produced on a schedule and retrievable as PDF. Served under /api/reporting/v1/snapshots; the CLI groups these under `system` because `reporting` is the hand-coded GraphQL group.",
+    "domain": "system",
+    "cli_recipes": [
+      {
+        "intent": "List snapshots",
+        "command": "elisity system search-snapshots"
+      },
+      {
+        "intent": "Download a snapshot as PDF",
+        "command": "elisity system retrieve-snapshot-image <id>"
+      },
+      {
+        "intent": "Pause a snapshot schedule",
+        "command": "elisity system pause-snapshot-schedule <id>",
+        "notes": "State-changing — stops future scheduled runs."
+      }
+    ],
+    "related_commands": [
+      "elisity system search-snapshots",
+      "elisity system retrieve-snapshot",
+      "elisity system retrieve-snapshot-image",
+      "elisity system search-snapshot-schedules",
+      "elisity system create-snapshot-schedule",
+      "elisity system pause-snapshot-schedule",
+      "elisity system resume-snapshot-schedule"
+    ]
+  },
+  {
+    "term": "Maintenance Mode",
+    "synonyms": [
+      "maintenance",
+      "maintenance window",
+      "ve maintenance"
+    ],
+    "context": "Virtual Edge state introduced in CCC 26.7 that suspends normal operation for servicing. Can be applied to a single VE or a batch of VE groups.",
+    "domain": "topology",
+    "cli_recipes": [
+      {
+        "intent": "Enable maintenance mode on a Virtual Edge",
+        "command": "elisity topology enable-maintenance <id>",
+        "notes": "State-changing on live infrastructure — get human approval first."
+      },
+      {
+        "intent": "Disable maintenance mode on a Virtual Edge",
+        "command": "elisity topology disable-maintenance <id>"
+      },
+      {
+        "intent": "Enable maintenance on a batch of Virtual Edge groups",
+        "command": "elisity topology enable-maintenance-for-group --body '{...}'"
+      }
+    ],
+    "related_commands": [
+      "elisity topology enable-maintenance",
+      "elisity topology disable-maintenance",
+      "elisity topology enable-maintenance-for-group",
+      "elisity topology disable-maintenance-for-group"
+    ]
+  },
+  {
+    "term": "Vendor",
+    "synonyms": [
+      "device vendor",
+      "manufacturer",
+      "vendor record"
+    ],
+    "context": "Vendor record served by the policy service (/api/policy/v1/vendor), added in CCC 26.7. Used to classify devices for policy matching.",
+    "domain": "policy",
+    "cli_recipes": [
+      {
+        "intent": "List all vendors",
+        "command": "elisity policy list-vendors"
+      },
+      {
+        "intent": "Get a vendor by ID",
+        "command": "elisity policy get-vendor <id>"
+      },
+      {
+        "intent": "Create a vendor",
+        "command": "elisity policy create-vendor --body '{...}'",
+        "notes": "State-changing — get human approval first."
+      }
+    ],
+    "related_commands": [
+      "elisity policy list-vendors",
+      "elisity policy get-vendor",
+      "elisity policy create-vendor",
+      "elisity policy update-vendor",
+      "elisity policy delete-vendor"
+    ]
   }
 ]

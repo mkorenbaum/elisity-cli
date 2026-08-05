@@ -43,6 +43,7 @@ from generate_commands import (  # noqa: E402
 )
 from tools.audit_counts import (  # noqa: E402
     audit_group_modules,
+    describe_command,
     check_docs,
     check_invariants,
     collect_counts,
@@ -186,6 +187,40 @@ class TestConfirmGate:
             "topology validate-virtual-edge-bulk-delete",
             "topology validate-virtual-edge-node-bulk-delete",
         }
+
+    def test_the_safe_prefix_rule_never_clears_a_destructive_command(self):
+        """docs/AGENTS.md tells agents a `get-`/`list-`/`read-`/`search-`/
+        `count-`/`export-` prefix means safe-to-run-without-approval.
+
+        The direction that matters is that nothing destructive is cleared by it.
+        The converse — a read-only POST that the rule flags anyway — costs an
+        approval round nobody needed, which is the error worth making, and the
+        exception table in AGENTS.md is an explicit allowlist for it.
+        """
+        safe_prefixes = ("get-", "list-", "read-", "search-", "count-", "export-")
+        cleared_but_destructive, safe_prefixed, state_changing = [], 0, 0
+        for module in sorted(COMMANDS_DIR.glob("*.py")):
+            if module.name == "__init__.py" or module.stem in HANDCODED_GROUPS:
+                continue
+            for block in module.read_text().split("@group.command(")[1:]:
+                name = block.split('"')[1]
+                verb, endpoint = describe_command(block)
+                if verb in ("", "GET"):
+                    continue
+                state_changing += 1
+                if not name.startswith(safe_prefixes):
+                    continue
+                safe_prefixed += 1
+                if is_destructive_operation(verb, endpoint):
+                    cleared_but_destructive.append(
+                        f"{module.stem} {name} ({verb} {endpoint})"
+                    )
+        assert state_changing == 375, state_changing
+        assert safe_prefixed == 39, safe_prefixed
+        assert cleared_but_destructive == [], (
+            "AGENTS.md's safe-prefix rule clears a DESTRUCTIVE command: "
+            + ", ".join(cleared_but_destructive)
+        )
 
     def test_generated_delete_command_is_gated(self):
         """Regeneration itself must emit the guard, not just today's tree."""
