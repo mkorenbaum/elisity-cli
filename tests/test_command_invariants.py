@@ -361,7 +361,12 @@ class TestParameterCollisions:
             ctxmod.CliContext.ensure_client = original
 
         assert result.exit_code == 0, result.output
-        assert captured["params"] == {"format": "csv", "size": "10"}
+        # `size` goes on the wire as an int, not a string: CCC 26.7 declares it
+        # {"type": "integer", "format": "int32"} where 26.3 declared only
+        # {"format": "int32"} with no `type` key, which the generator could only
+        # treat as a string. Seven query parameters gained a type this way in
+        # 26.7. The renamed --format-param flag must still send `format`.
+        assert captured["params"] == {"format": "csv", "size": 10}
 
 
 # --------------------------------------------------------------------------

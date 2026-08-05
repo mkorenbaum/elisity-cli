@@ -74,6 +74,169 @@ def cmd_delete(ctx, connectorid, id, cmd_fmt, cmd_query, confirm):
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
+@group.command("read-connector")
+@click.argument("connectorid")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_read_connector(ctx, connectorid, cmd_fmt, cmd_query):
+    """Read connector configuration by ID"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/identity-graph/v1/connectors/{connectorid}"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.get(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("update-connector")
+@click.argument("connectorid")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_update_connector(ctx, connectorid, body_data, body_file, cmd_fmt, cmd_query):
+    """Update connector configuration by ID"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/identity-graph/v1/connectors/{connectorid}"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.put(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("delete-connector")
+@click.argument("connectorid")
+@click.option("--delete-layer", "delete_layer", type=bool, default=False, help="delete-layer")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
+@pass_context
+def cmd_delete_connector(ctx, connectorid, delete_layer, cmd_fmt, cmd_query, confirm):
+    """Delete connector configuration by ID"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    if not confirm:
+        click.echo("Use --confirm to execute this destructive operation.", err=True)
+        raise SystemExit(1)
+    endpoint = f"/api/identity-graph/v1/connectors/{connectorid}"
+    params = {}
+    if delete_layer is not None:
+        params["delete-layer"] = delete_layer
+    client = ctx.ensure_client()
+    try:
+        result = client.delete(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("get-endpoint")
+@click.argument("connectorid")
+@click.argument("endpointid")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_get_endpoint(ctx, connectorid, endpointid, cmd_fmt, cmd_query):
+    """Get a single endpoint"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/identity-graph/v1/connectors/{connectorid}/endpoints/{endpointid}"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.get(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("update-endpoint")
+@click.argument("connectorid")
+@click.argument("endpointid")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_update_endpoint(ctx, connectorid, endpointid, body_data, body_file, cmd_fmt, cmd_query):
+    """Update an endpoint"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/identity-graph/v1/connectors/{connectorid}/endpoints/{endpointid}"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.put(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("delete-endpoint")
+@click.argument("connectorid")
+@click.argument("endpointid")
+@click.option("--delete-layer", "delete_layer", type=bool, default=False, help="If true, purge enrichment data from devices enriched by this endpoint")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
+@pass_context
+def cmd_delete_endpoint(ctx, connectorid, endpointid, delete_layer, cmd_fmt, cmd_query, confirm):
+    """Delete an endpoint"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    if not confirm:
+        click.echo("Use --confirm to execute this destructive operation.", err=True)
+        raise SystemExit(1)
+    endpoint = f"/api/identity-graph/v1/connectors/{connectorid}/endpoints/{endpointid}"
+    params = {}
+    if delete_layer is not None:
+        params["delete-layer"] = delete_layer
+    client = ctx.ensure_client()
+    try:
+        result = client.delete(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
 @group.command("read-connector-configuration")
 @click.argument("id")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
@@ -325,6 +488,169 @@ def cmd_async_export_devices(ctx, connectorid, cmd_fmt, cmd_query):
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
+@group.command("read-all-connectors")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_read_all_connectors(ctx, cmd_fmt, cmd_query):
+    """Read all connector configuration entries"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/identity-graph/v1/connectors"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.get(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("create-connector")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_create_connector(ctx, body_data, body_file, cmd_fmt, cmd_query):
+    """Create new connector configuration"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/identity-graph/v1/connectors"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("list-endpoints")
+@click.argument("connectorid")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_list_endpoints(ctx, connectorid, cmd_fmt, cmd_query):
+    """List all endpoints for a connector"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/identity-graph/v1/connectors/{connectorid}/endpoints"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.get(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("add-endpoint")
+@click.argument("connectorid")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_add_endpoint(ctx, connectorid, body_data, body_file, cmd_fmt, cmd_query):
+    """Add an endpoint to a connector"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/identity-graph/v1/connectors/{connectorid}/endpoints"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("validate-endpoint-for-connector")
+@click.argument("connectorid")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_validate_endpoint_for_connector(ctx, connectorid, body_data, body_file, cmd_fmt, cmd_query):
+    """Validate endpoint configuration for existing connector"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/identity-graph/v1/connectors/{connectorid}/endpoints/validate"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("validate-endpoint-pre-creation")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_validate_endpoint_pre_creation(ctx, body_data, body_file, cmd_fmt, cmd_query):
+    """Validate endpoint configuration before connector creation"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/identity-graph/v1/connectors/endpoints/validate"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
 @group.command("create-connector-configuration")
 @click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
@@ -433,7 +759,7 @@ def cmd_download_import_template(ctx, id, cmd_fmt, cmd_query):
 @click.option("--globalFilter", "globalFilter", type=str, default=None, help="Global filter")
 @click.option("--columnFilter", "columnFilter", type=str, default=None, help="Filtering criteria in the format: columnFilter=deviceAttributeName,keyword,value")
 @click.option("--page", "page", type=int, default=None, help="Page number")
-@click.option("--size", "size", type=int, default=None, help="Page size")
+@click.option("--size", "size", type=int, default=None, help="Page size (max: 1000)")
 @click.option("--sort", "sort", type=str, default=None, help="Sort by column")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
@@ -513,6 +839,26 @@ def cmd_download_export_file(ctx, connectorid, exportid, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_read(ctx, cmd_fmt, cmd_query):
+    """Get hierarchical connector status with per-endpoint details"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/identity-graph/v1/connector-status"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.get(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("read-get")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_read_get(ctx, cmd_fmt, cmd_query):
     """Get connectivity status of all configured connectors"""
     if cmd_fmt:
         ctx.format = cmd_fmt

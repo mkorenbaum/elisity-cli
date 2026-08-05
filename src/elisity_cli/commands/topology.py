@@ -45,7 +45,7 @@ def cmd_get_site_v2(ctx, id, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_update_site(ctx, id, body_data, body_file, cmd_fmt, cmd_query):
-    """Update site."""
+    """Update site"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -75,7 +75,7 @@ def cmd_update_site(ctx, id, body_data, body_file, cmd_fmt, cmd_query):
 @click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
 def cmd_delete_site_v2(ctx, id, cmd_fmt, cmd_query, confirm):
-    """Delete site."""
+    """Delete site"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -319,7 +319,7 @@ def cmd_ack_registration(ctx, id, cmd_fmt, cmd_query):
 
 @group.command("get-single-ven")
 @click.argument("id")
-@click.option("--expands", "expands", type=str, default=None, help="expands")
+@click.option("--expands", "expands", type=str, default=None, help="Optional field expansion to include additional data. Use 'topology' for all neig")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
@@ -349,7 +349,7 @@ def cmd_get_single_ven(ctx, id, expands, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_update_ven(ctx, id, body_data, body_file, cmd_fmt, cmd_query):
-    """Update existing virtual edge node."""
+    """Update existing virtual edge node"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -379,7 +379,7 @@ def cmd_update_ven(ctx, id, body_data, body_file, cmd_fmt, cmd_query):
 @click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
 def cmd_delete_ven(ctx, id, cmd_fmt, cmd_query, confirm):
-    """Delete virtual edge node."""
+    """Delete virtual edge node"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -404,7 +404,7 @@ def cmd_delete_ven(ctx, id, cmd_fmt, cmd_query, confirm):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_exclude_adjacent_vens(ctx, id, visibilityvenid, cmd_fmt, cmd_query):
-    """Exclude adjacent VENs and recreate missing ones"""
+    """Exclude adjacent VEN from topology"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -446,7 +446,7 @@ def cmd_rediscover_adjacent_vens(ctx, id, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_re_initialize_virtual_edge_node(ctx, id, cmd_fmt, cmd_query):
-    """Trigger re-initialization of a unsuccessful recommission or a unsuccessful onboard."""
+    """Trigger re-initialization of a unsuccessful recommission or onboard"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -557,6 +557,50 @@ def cmd_decommission_virtual_edge_node(ctx, id, cmd_fmt, cmd_query):
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
+@group.command("change-ven-group")
+@click.argument("id")
+@click.argument("newvirtualedgegroupid")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_change_ven_group(ctx, id, newvirtualedgegroupid, cmd_fmt, cmd_query):
+    """Change Virtual Edge Group for a Virtual Edge Node (VEN)"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v1/virtual-edge-nodes/{id}/change-group/{newvirtualedgegroupid}"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.put(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("change-active-ve")
+@click.argument("id")
+@click.argument("targetveid")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_change_active_ve(ctx, id, targetveid, cmd_fmt, cmd_query):
+    """Change Active Virtual Edge for a Virtual Edge Node (VEN)"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v1/virtual-edge-nodes/{id}/change-active-ve/{targetveid}"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.put(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
 @group.command("validate-virtual-edge-nodes-bulk-update")
 @click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
@@ -564,7 +608,7 @@ def cmd_decommission_virtual_edge_node(ctx, id, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_validate_virtual_edge_nodes_bulk_update(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Bulk edit Virtual Edge Nodes"""
+    """Bulk update VEN credentials"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -664,6 +708,37 @@ def cmd_delete_virtual_edge_group(ctx, id, cmd_fmt, cmd_query, confirm):
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
+@group.command("patch-virtual-edge-group")
+@click.argument("id")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_patch_virtual_edge_group(ctx, id, body_data, body_file, cmd_fmt, cmd_query):
+    """Partial-update of a virtual edge group"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v1/virtual-edge-groups/{id}"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.patch(endpoint, data=body)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
 @group.command("rebalance-virtual-edge-group")
 @click.argument("id")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
@@ -693,7 +768,7 @@ def cmd_rebalance_virtual_edge_group(ctx, id, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_update_task_list(ctx, id, body_data, body_file, cmd_fmt, cmd_query):
-    """Update a task list, managing the status of published tasks"""
+    """Update a task list"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -724,12 +799,44 @@ def cmd_update_task_list(ctx, id, body_data, body_file, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_update_task_status(ctx, id, body_data, body_file, cmd_fmt, cmd_query):
-    """Update status of one or more tasks"""
+    """Update task status report"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
     endpoint = f"/api/topology/v1/task-list/{id}/report"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.put(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("update-target-site-by-id")
+@click.argument("type_param")
+@click.argument("id")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_update_target_site_by_id(ctx, type_param, id, body_data, body_file, cmd_fmt, cmd_query):
+    """Updates an existing target site entry by ID (for active or future entries)."""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v1/targets/{type_param}/{id}"
     params = None
     body = None
     if body_file:
@@ -904,12 +1011,62 @@ def cmd_delete_site(ctx, id, cmd_fmt, cmd_query, confirm):
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
+@group.command("get-settings")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_get_settings(ctx, cmd_fmt, cmd_query):
+    """Get topology settings"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v1/settings"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.get(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("update-settings")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_update_settings(ctx, body_data, body_file, cmd_fmt, cmd_query):
+    """Update topology settings"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v1/settings"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.put(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
 @group.command("get-global-interfaces-settings")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_get_global_interfaces_settings(ctx, cmd_fmt, cmd_query):
-    """Get global interfaces settings details"""
+    """Get global interface settings"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -931,7 +1088,7 @@ def cmd_get_global_interfaces_settings(ctx, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_update_global_interfaces_settings(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Update global interfaces settings."""
+    """Update global interface settings"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -962,7 +1119,7 @@ def cmd_update_global_interfaces_settings(ctx, body_data, body_file, cmd_fmt, cm
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_update_interfaces_settings(ctx, id, body_data, body_file, cmd_fmt, cmd_query):
-    """Update an interfaces settings. (deprecated)"""
+    """Update interface settings by ID (deprecated)"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -993,7 +1150,7 @@ def cmd_update_interfaces_settings(ctx, id, body_data, body_file, cmd_fmt, cmd_q
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_update_global_credentials(ctx, id, body_data, body_file, cmd_fmt, cmd_query):
-    """Update global credentials."""
+    """Update global credentials"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1023,7 +1180,7 @@ def cmd_update_global_credentials(ctx, id, body_data, body_file, cmd_fmt, cmd_qu
 @click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
 def cmd_delete_global_credentials(ctx, id, cmd_fmt, cmd_query, confirm):
-    """Delete global credentials."""
+    """Delete global credentials"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1047,7 +1204,7 @@ def cmd_delete_global_credentials(ctx, id, cmd_fmt, cmd_query, confirm):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_get_flow_exporter(ctx, id, cmd_fmt, cmd_query):
-    """Get single Flow Exporter"""
+    """Get a single flow exporter"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1070,7 +1227,7 @@ def cmd_get_flow_exporter(ctx, id, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_update_flow_exporter(ctx, id, body_data, body_file, cmd_fmt, cmd_query):
-    """Update FlowExporter."""
+    """Update a flow exporter"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1100,7 +1257,7 @@ def cmd_update_flow_exporter(ctx, id, body_data, body_file, cmd_fmt, cmd_query):
 @click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
 def cmd_delete_flow_exporter(ctx, id, cmd_fmt, cmd_query, confirm):
-    """Delete Flow Exporter."""
+    """Delete a flow exporter"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1119,7 +1276,7 @@ def cmd_delete_flow_exporter(ctx, id, cmd_fmt, cmd_query, confirm):
     render(result, ctx.format, ctx.query)
 
 @group.command("get-all-distribution-zones")
-@click.option("--includeIsolated", "includeIsolated", type=bool, default=None, help="includeIsolated")
+@click.option("--includeIsolated", "includeIsolated", type=bool, default=False, help="When `true`, Isolated Distribution Zones are included in the response. Isolated ")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
@@ -1148,7 +1305,7 @@ def cmd_get_all_distribution_zones(ctx, includeIsolated, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_update_distribution_zone(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Update distribution zone."""
+    """Update Distribution Zone"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1178,7 +1335,7 @@ def cmd_update_distribution_zone(ctx, body_data, body_file, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_create_distribution_zone(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Create list of distribution zones."""
+    """Create Distribution Zones"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1203,14 +1360,14 @@ def cmd_create_distribution_zone(ctx, body_data, body_file, cmd_fmt, cmd_query):
 
 @group.command("update-cloud-controller")
 @click.argument("id")
-@click.option("--cloudType", "cloudType", type=str, required=True, help="cloudType")
+@click.option("--cloudType", "cloudType", type=str, required=True, help="Type of cloud controller")
 @click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_update_cloud_controller(ctx, id, cloudType, body_data, body_file, cmd_fmt, cmd_query):
-    """Update cloud controller."""
+    """Update cloud controller"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1242,7 +1399,7 @@ def cmd_update_cloud_controller(ctx, id, cloudType, body_data, body_file, cmd_fm
 @click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
 def cmd_delete_cloud_controller(ctx, id, cmd_fmt, cmd_query, confirm):
-    """Delete cloud controller."""
+    """Delete Mist cloud controller"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1260,17 +1417,142 @@ def cmd_delete_cloud_controller(ctx, id, cmd_fmt, cmd_query, confirm):
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
-@group.command("get-all-sites-v2")
-@click.option("--globalFilter", "globalFilter", type=str, default=None, help="Global filter")
-@click.option("--columnFilter", "columnFilter", type=str, default=None, help="Filtering criteria in the format: columnFilter=attributeName,keyword,value&colum")
-@click.option("--page", "page", type=int, default=None, help="Page number")
-@click.option("--size", "size", type=int, default=None, help="Page size")
-@click.option("--sort", "sort", type=str, default=None, help="Sort by column")
+@group.command("validate-virtual-edges-bulk-json")
+@click.option("--virtualEdgeType", "virtualEdgeType", type=str, required=True, help="Type of Virtual Edge to create from the file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
-def cmd_get_all_sites_v2(ctx, globalFilter, columnFilter, page, size, sort, cmd_fmt, cmd_query):
-    """Get all Sites"""
+def cmd_validate_virtual_edges_bulk_json(ctx, virtualEdgeType, cmd_fmt, cmd_query):
+    """Validate VE rows for bulk upload (V2, JSON streaming)"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v2/virtual-edges/bulk/validate"
+    params = {}
+    if virtualEdgeType is not None:
+        params["virtualEdgeType"] = virtualEdgeType
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("upload-virtual-edges-bulk-json")
+@click.option("--virtualEdgeType", "virtualEdgeType", type=str, required=True, help="Type of Virtual Edge to create")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_upload_virtual_edges_bulk_json(ctx, virtualEdgeType, cmd_fmt, cmd_query):
+    """Bulk upload VE rows (V2, JSON streaming)"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v2/virtual-edges/bulk/upload"
+    params = {}
+    if virtualEdgeType is not None:
+        params["virtualEdgeType"] = virtualEdgeType
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("search-virtual-edge-nodes")
+@click.option("--page", "page", type=int, default=None, help="Page number")
+@click.option("--size", "size", type=int, default=None, help="Page size")
+@click.option("--sort", "sort", type=str, default=None, help="Sort by column")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_search_virtual_edge_nodes(ctx, page, size, sort, body_data, body_file, cmd_fmt, cmd_query):
+    """List Virtual Edge Nodes with pagination and sorting"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v2/virtual-edge-nodes/search"
+    params = {}
+    if page is not None:
+        params["page"] = page
+    if size is not None:
+        params["size"] = size
+    if sort is not None:
+        params["sort"] = sort
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("validate-virtual-edge-nodes-bulk-json")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_validate_virtual_edge_nodes_bulk_json(ctx, cmd_fmt, cmd_query):
+    """Validate VEN rows for bulk upload (V2, JSON streaming)"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v2/virtual-edge-nodes/bulk/validate"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("upload-virtual-edge-nodes-bulk-json")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_upload_virtual_edge_nodes_bulk_json(ctx, cmd_fmt, cmd_query):
+    """Bulk upload VEN rows (V2, JSON streaming)"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v2/virtual-edge-nodes/bulk/upload"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("get-all-sites-v2")
+@click.option("--globalFilter", "globalFilter", type=str, default=None, help="Global filter — searches across label, description, tags, createdBy, and modifie")
+@click.option("--columnFilters", "columnFilters", type=str, default=None, help="Column-specific filter in the format: columnFilters=attributeName,keyword,value.")
+@click.option("--sort", "sort", type=str, default=None, help="Sort by column")
+@click.option("--page", "page", type=int, default=None, help="Page number")
+@click.option("--size", "size", type=int, default=None, help="Page size")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_get_all_sites_v2(ctx, globalFilter, columnFilters, sort, page, size, cmd_fmt, cmd_query):
+    """Get all Sites (paginated)"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1279,14 +1561,14 @@ def cmd_get_all_sites_v2(ctx, globalFilter, columnFilter, page, size, sort, cmd_
     params = {}
     if globalFilter is not None:
         params["globalFilter"] = globalFilter
-    if columnFilter is not None:
-        params["columnFilter"] = columnFilter
+    if columnFilters is not None:
+        params["columnFilters"] = columnFilters
+    if sort is not None:
+        params["sort"] = sort
     if page is not None:
         params["page"] = page
     if size is not None:
         params["size"] = size
-    if sort is not None:
-        params["sort"] = sort
     client = ctx.ensure_client()
     try:
         result = client.get(endpoint, params=params)
@@ -1302,7 +1584,7 @@ def cmd_get_all_sites_v2(ctx, globalFilter, columnFilter, page, size, sort, cmd_
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_create_site_post(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Create site label."""
+    """Create site label"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1325,6 +1607,90 @@ def cmd_create_site_post(ctx, body_data, body_file, cmd_fmt, cmd_query):
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
+@group.command("get-site-label-independent-control-mappings")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_get_site_label_independent_control_mappings(ctx, cmd_fmt, cmd_query):
+    """Get all Independent Control Mappings for Site Labels"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v2/sites/independent-control-mappings"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.get(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("create-site-label-independent-control-mappings")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_create_site_label_independent_control_mappings(ctx, body_data, body_file, cmd_fmt, cmd_query):
+    """Create Independent Control Mappings between Site Labels"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v2/sites/independent-control-mappings"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("delete-site-label-independent-control-mappings")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
+@pass_context
+def cmd_delete_site_label_independent_control_mappings(ctx, body_data, body_file, cmd_fmt, cmd_query, confirm):
+    """Delete Independent Control Mappings for Site Labels"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    if not confirm:
+        click.echo("Use --confirm to execute this destructive operation.", err=True)
+        raise SystemExit(1)
+    endpoint = f"/api/topology/v2/sites/independent-control-mappings"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.delete(endpoint, params=params, data=body)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
 @group.command("export-site-labels")
 @click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
@@ -1332,7 +1698,7 @@ def cmd_create_site_post(ctx, body_data, body_file, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_export_site_labels(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Generate all site labels as CSV"""
+    """Export site labels as CSV"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1362,7 +1728,7 @@ def cmd_export_site_labels(ctx, body_data, body_file, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_bulk_create_site_labels(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Create list of sites."""
+    """Bulk create site labels"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1392,7 +1758,7 @@ def cmd_bulk_create_site_labels(ctx, body_data, body_file, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_bulk_delete_site_v2(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Bulk delete site labels."""
+    """Bulk delete site labels"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1422,7 +1788,7 @@ def cmd_bulk_delete_site_v2(ctx, body_data, body_file, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_export_distribution_zones(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Generate all distribution zones as CSV"""
+    """Export Distribution Zones as CSV"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1446,15 +1812,15 @@ def cmd_export_distribution_zones(ctx, body_data, body_file, cmd_fmt, cmd_query)
     render(result, ctx.format, ctx.query)
 
 @group.command("get-virtual-edge")
+@click.option("--sort", "sort", type=str, default=None, help="Sort by column")
 @click.option("--globalFilter", "globalFilter", type=str, default=None, help="Global filter")
-@click.option("--columnFilter", "columnFilter", type=str, default=None, help="Filtering criteria in the format: columnFilter=attributeName,keyword,value&colum")
+@click.option("--columnFilters", "columnFilters", type=str, default=None, help="Filtering criteria in the format: columnFilters=attributeName,keyword,value&colu")
 @click.option("--page", "page", type=int, default=None, help="Page number")
 @click.option("--size", "size", type=int, default=None, help="Page size")
-@click.option("--sort", "sort", type=str, default=None, help="Sort by column")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
-def cmd_get_virtual_edge(ctx, globalFilter, columnFilter, page, size, sort, cmd_fmt, cmd_query):
+def cmd_get_virtual_edge(ctx, sort, globalFilter, columnFilters, page, size, cmd_fmt, cmd_query):
     """Search and filter virtual edge"""
     if cmd_fmt:
         ctx.format = cmd_fmt
@@ -1462,16 +1828,16 @@ def cmd_get_virtual_edge(ctx, globalFilter, columnFilter, page, size, sort, cmd_
         ctx.query = cmd_query
     endpoint = f"/api/topology/v1/virtual-edges"
     params = {}
+    if sort is not None:
+        params["sort"] = sort
     if globalFilter is not None:
         params["globalFilter"] = globalFilter
-    if columnFilter is not None:
-        params["columnFilter"] = columnFilter
+    if columnFilters is not None:
+        params["columnFilters"] = columnFilters
     if page is not None:
         params["page"] = page
     if size is not None:
         params["size"] = size
-    if sort is not None:
-        params["sort"] = sort
     client = ctx.ensure_client()
     try:
         result = client.get(endpoint, params=params)
@@ -1593,6 +1959,48 @@ def cmd_metrics(ctx, id, body_data, body_file, cmd_fmt, cmd_query):
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
+@group.command("enable-maintenance")
+@click.argument("id")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_enable_maintenance(ctx, id, cmd_fmt, cmd_query):
+    """Enable Maintenance mode on a Virtual Edge"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v1/virtual-edges/{id}/maintenance/enable"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("disable-maintenance")
+@click.argument("id")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_disable_maintenance(ctx, id, cmd_fmt, cmd_query):
+    """Disable Maintenance mode on a Virtual Edge"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v1/virtual-edges/{id}/maintenance/disable"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
 @group.command("heartbeat")
 @click.argument("id")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
@@ -1615,15 +2023,15 @@ def cmd_heartbeat(ctx, id, cmd_fmt, cmd_query):
     render(result, ctx.format, ctx.query)
 
 @group.command("get-virtual-edge-by-post")
+@click.option("--sort", "sort", type=str, default=None, help="Sort by column")
 @click.option("--page", "page", type=int, default=None, help="Page number")
 @click.option("--size", "size", type=int, default=None, help="Page size")
-@click.option("--sort", "sort", type=str, default=None, help="Sort by column")
 @click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
-def cmd_get_virtual_edge_by_post(ctx, page, size, sort, body_data, body_file, cmd_fmt, cmd_query):
+def cmd_get_virtual_edge_by_post(ctx, sort, page, size, body_data, body_file, cmd_fmt, cmd_query):
     """Search and filter virtual edge"""
     if cmd_fmt:
         ctx.format = cmd_fmt
@@ -1631,12 +2039,12 @@ def cmd_get_virtual_edge_by_post(ctx, page, size, sort, body_data, body_file, cm
         ctx.query = cmd_query
     endpoint = f"/api/topology/v1/virtual-edges/view"
     params = {}
+    if sort is not None:
+        params["sort"] = sort
     if page is not None:
         params["page"] = page
     if size is not None:
         params["size"] = size
-    if sort is not None:
-        params["sort"] = sort
     body = None
     if body_file:
         import json as _json
@@ -1689,7 +2097,7 @@ def cmd_register(ctx, body_data, body_file, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_get_logger(ctx, loggername, cmd_fmt, cmd_query):
-    """GET /api/topology/v1/virtual-edges/loggers/{loggerName}"""
+    """Get logger level"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1712,7 +2120,7 @@ def cmd_get_logger(ctx, loggername, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_set_logger_level(ctx, loggername, body_data, body_file, cmd_fmt, cmd_query):
-    """POST /api/topology/v1/virtual-edges/loggers/{loggerName}"""
+    """Set logger level"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1742,7 +2150,7 @@ def cmd_set_logger_level(ctx, loggername, body_data, body_file, cmd_fmt, cmd_que
 @click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
 def cmd_use_default_logger_level(ctx, loggername, cmd_fmt, cmd_query, confirm):
-    """DELETE /api/topology/v1/virtual-edges/loggers/{loggerName}"""
+    """Reset logger to default level"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1760,6 +2168,36 @@ def cmd_use_default_logger_level(ctx, loggername, cmd_fmt, cmd_query, confirm):
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
+@group.command("set-logger-levels-bulk")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_set_logger_levels_bulk(ctx, body_data, body_file, cmd_fmt, cmd_query):
+    """Set logger levels in bulk"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v1/virtual-edges/loggers/bulk"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
 @group.command("export-virtual-edges")
 @click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
@@ -1767,7 +2205,7 @@ def cmd_use_default_logger_level(ctx, loggername, cmd_fmt, cmd_query, confirm):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_export_virtual_edges(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Generate all virtual edges as CSV"""
+    """Generate all virtual edges as XLSX"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1791,16 +2229,16 @@ def cmd_export_virtual_edges(ctx, body_data, body_file, cmd_fmt, cmd_query):
     render(result, ctx.format, ctx.query)
 
 @group.command("validate-virtual-edge-bulk-upload")
-@click.option("--virtualEdgeType", "virtualEdgeType", type=str, required=True, help="Virtual Edge Type")
-@click.option("--hostingMode", "hostingMode", type=str, required=True, help="Hosting mode of the VEs.")
-@click.option("--virtualEdgeGroupId", "virtualEdgeGroupId", type=str, default=None, help="Virtual Edge Group Id if validating Hypervisor hosted Central Virtual Edge")
+@click.option("--virtualEdgeType", "virtualEdgeType", type=str, required=True, help="Type of Virtual Edge to create from the file")
+@click.option("--hostingMode", "hostingMode", type=str, required=True, help="Hosting mode for the Virtual Edges")
+@click.option("--virtualEdgeGroupId", "virtualEdgeGroupId", type=str, default=None, help="Virtual Edge Group (VEG) UUID. Required when hosting mode is HYPERVISOR")
 @click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_validate_virtual_edge_bulk_upload(ctx, virtualEdgeType, hostingMode, virtualEdgeGroupId, body_data, body_file, cmd_fmt, cmd_query):
-    """Validate XLXS file content for Virtual Edge bulk upload."""
+    """Validate XLSX file for Virtual Edge bulk upload"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1830,16 +2268,16 @@ def cmd_validate_virtual_edge_bulk_upload(ctx, virtualEdgeType, hostingMode, vir
     render(result, ctx.format, ctx.query)
 
 @group.command("virtual-edge-bulk-upload")
-@click.option("--virtualEdgeType", "virtualEdgeType", type=str, required=True, help="Virtual Edge Type")
-@click.option("--hostingMode", "hostingMode", type=str, required=True, help="Hosting mode of the VEs.")
-@click.option("--virtualEdgeGroupId", "virtualEdgeGroupId", type=str, default=None, help="Virtual Edge Group Id if validating Hypervisor hosted Central Virtual Edge")
+@click.option("--virtualEdgeType", "virtualEdgeType", type=str, required=True, help="Type of Virtual Edge to create")
+@click.option("--hostingMode", "hostingMode", type=str, required=True, help="Hosting mode for the Virtual Edges")
+@click.option("--virtualEdgeGroupId", "virtualEdgeGroupId", type=str, default=None, help="Virtual Edge Group (VEG) UUID. Required when hosting mode is HYPERVISOR")
 @click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_virtual_edge_bulk_upload(ctx, virtualEdgeType, hostingMode, virtualEdgeGroupId, body_data, body_file, cmd_fmt, cmd_query):
-    """Bulk addition of Virtual Edges from xls file."""
+    """Bulk upload Virtual Edges from XLSX file"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1868,6 +2306,36 @@ def cmd_virtual_edge_bulk_upload(ctx, virtualEdgeType, hostingMode, virtualEdgeG
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
+@group.command("bulk-delete-virtual-edges")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_bulk_delete_virtual_edges(ctx, body_data, body_file, cmd_fmt, cmd_query):
+    """Bulk delete Virtual Edges"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v1/virtual-edges/bulk/delete"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
 @group.command("validate-virtual-edge-bulk-delete")
 @click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
@@ -1875,7 +2343,7 @@ def cmd_virtual_edge_bulk_upload(ctx, virtualEdgeType, hostingMode, virtualEdgeG
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_validate_virtual_edge_bulk_delete(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Validate list of VE IDs before Virtual Edge bulk delete."""
+    """Validate Virtual Edges before bulk delete"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1905,7 +2373,7 @@ def cmd_validate_virtual_edge_bulk_delete(ctx, body_data, body_file, cmd_fmt, cm
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_virtual_edge_bulk_change_group(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Virtual Edges bulk change group."""
+    """Bulk change Virtual Edge group"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -1930,15 +2398,16 @@ def cmd_virtual_edge_bulk_change_group(ctx, body_data, body_file, cmd_fmt, cmd_q
 
 @group.command("get-virtual-edge-nodes")
 @click.option("--expands", "expands", type=str, default=None, help="expands")
+@click.option("--contextVeId", "contextVeId", type=str, default=None, help="contextVeId")
 @click.option("--globalFilter", "globalFilter", type=str, default=None, help="Global filter")
-@click.option("--columnFilter", "columnFilter", type=str, default=None, help="Filtering criteria in the format: columnFilter=attributeName,keyword,value&colum")
+@click.option("--columnFilters", "columnFilters", type=str, default=None, help="Filtering criteria in the format: columnFilters=attributeName,keyword,value&colu")
 @click.option("--page", "page", type=int, default=None, help="Page number")
 @click.option("--size", "size", type=int, default=None, help="Page size")
 @click.option("--sort", "sort", type=str, default=None, help="Sort by column")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
-def cmd_get_virtual_edge_nodes(ctx, expands, globalFilter, columnFilter, page, size, sort, cmd_fmt, cmd_query):
+def cmd_get_virtual_edge_nodes(ctx, expands, contextVeId, globalFilter, columnFilters, page, size, sort, cmd_fmt, cmd_query):
     """List Virtual Edge Nodes with pagination and sorting"""
     if cmd_fmt:
         ctx.format = cmd_fmt
@@ -1948,10 +2417,12 @@ def cmd_get_virtual_edge_nodes(ctx, expands, globalFilter, columnFilter, page, s
     params = {}
     if expands is not None:
         params["expands"] = expands
+    if contextVeId is not None:
+        params["contextVeId"] = contextVeId
     if globalFilter is not None:
         params["globalFilter"] = globalFilter
-    if columnFilter is not None:
-        params["columnFilter"] = columnFilter
+    if columnFilters is not None:
+        params["columnFilters"] = columnFilters
     if page is not None:
         params["page"] = page
     if size is not None:
@@ -1973,7 +2444,7 @@ def cmd_get_virtual_edge_nodes(ctx, expands, globalFilter, columnFilter, page, s
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_create_ven(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Create a new virtual edge node."""
+    """Create a new virtual edge node"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -2054,7 +2525,7 @@ def cmd_topology(ctx, id, body_data, body_file, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_sxp_password_regenerate(ctx, id, cmd_fmt, cmd_query):
-    """Generate all virtual edge nodes as CSV"""
+    """Regenerate SXP password for Virtual Edge Node"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -2077,7 +2548,7 @@ def cmd_sxp_password_regenerate(ctx, id, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_register_ven(ctx, id, body_data, body_file, cmd_fmt, cmd_query):
-    """Register virtual edge node."""
+    """Register virtual edge node"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -2137,7 +2608,7 @@ def cmd_metrics_post(ctx, id, body_data, body_file, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_heartbeat_post(ctx, id, cmd_fmt, cmd_query):
-    """Register heartbeat from virtual edge node."""
+    """Register heartbeat from virtual edge node"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -2217,6 +2688,7 @@ def cmd_batch_create_or_update_multiple_rules(ctx, id, body_data, body_file, cmd
 
 @group.command("get-virtual-edge-nodes-by-post")
 @click.option("--expands", "expands", type=str, default=None, help="expands")
+@click.option("--contextVeId", "contextVeId", type=str, default=None, help="contextVeId")
 @click.option("--page", "page", type=int, default=None, help="Page number")
 @click.option("--size", "size", type=int, default=None, help="Page size")
 @click.option("--sort", "sort", type=str, default=None, help="Sort by column")
@@ -2225,7 +2697,7 @@ def cmd_batch_create_or_update_multiple_rules(ctx, id, body_data, body_file, cmd
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
-def cmd_get_virtual_edge_nodes_by_post(ctx, expands, page, size, sort, body_data, body_file, cmd_fmt, cmd_query):
+def cmd_get_virtual_edge_nodes_by_post(ctx, expands, contextVeId, page, size, sort, body_data, body_file, cmd_fmt, cmd_query):
     """List Virtual Edge Nodes with pagination and sorting"""
     if cmd_fmt:
         ctx.format = cmd_fmt
@@ -2235,6 +2707,8 @@ def cmd_get_virtual_edge_nodes_by_post(ctx, expands, page, size, sort, body_data
     params = {}
     if expands is not None:
         params["expands"] = expands
+    if contextVeId is not None:
+        params["contextVeId"] = contextVeId
     if page is not None:
         params["page"] = page
     if size is not None:
@@ -2258,19 +2732,22 @@ def cmd_get_virtual_edge_nodes_by_post(ctx, expands, page, size, sort, body_data
     render(result, ctx.format, ctx.query)
 
 @group.command("export-virtual-edge-nodes")
+@click.option("--contextVeId", "contextVeId", type=str, default=None, help="contextVeId")
 @click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
-def cmd_export_virtual_edge_nodes(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Generate all virtual edge nodes as CSV"""
+def cmd_export_virtual_edge_nodes(ctx, contextVeId, body_data, body_file, cmd_fmt, cmd_query):
+    """Generate all virtual edge nodes as XLSX"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
     endpoint = f"/api/topology/v1/virtual-edge-nodes/export"
-    params = None
+    params = {}
+    if contextVeId is not None:
+        params["contextVeId"] = contextVeId
     body = None
     if body_file:
         import json as _json
@@ -2288,17 +2765,17 @@ def cmd_export_virtual_edge_nodes(ctx, body_data, body_file, cmd_fmt, cmd_query)
     render(result, ctx.format, ctx.query)
 
 @group.command("validate-virtual-edge-nodes-bulk-upload")
-@click.option("--credentialMode", "credentialMode", type=str, required=True, help="Credential mode of the Virtual Edge Nodes.")
-@click.option("--globalCredentialId", "globalCredentialId", type=str, default=None, help="Global Credentials UUID.")
-@click.option("--parentType", "parentType", type=str, required=True, help="Parent type")
-@click.option("--parentId", "parentId", type=str, required=True, help="UUID of either parent Virtual Edge or Virtual Edge Group, depending on the selec")
+@click.option("--credentialMode", "credentialMode", type=str, required=True, help="Credential mode for the Virtual Edge Nodes")
+@click.option("--globalCredentialId", "globalCredentialId", type=str, default=None, help="UUID of the global credential. Required when credentialMode is GLOBAL")
+@click.option("--parentType", "parentType", type=str, required=True, help="Specifies whether VENs are assigned to a VE or a VE Group")
+@click.option("--parentId", "parentId", type=str, required=True, help="UUID of the parent Virtual Edge or Virtual Edge Group, depending on parentType")
 @click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_validate_virtual_edge_nodes_bulk_upload(ctx, credentialMode, globalCredentialId, parentType, parentId, body_data, body_file, cmd_fmt, cmd_query):
-    """Validate XLXS file content for Virtual Edge bulk upload."""
+    """Validate XLSX file for Virtual Edge Node bulk upload"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -2330,17 +2807,17 @@ def cmd_validate_virtual_edge_nodes_bulk_upload(ctx, credentialMode, globalCrede
     render(result, ctx.format, ctx.query)
 
 @group.command("virtual-edge-node-bulk-upload")
-@click.option("--credentialMode", "credentialMode", type=str, required=True, help="Credential mode of the Virtual Edge Nodes.")
-@click.option("--globalCredentialId", "globalCredentialId", type=str, default=None, help="Global Credentials UUID.")
-@click.option("--parentType", "parentType", type=str, required=True, help="Parent type")
-@click.option("--parentId", "parentId", type=str, required=True, help="UUID of either parent Virtual Edge or Virtual Edge Group, depending on the selec")
+@click.option("--credentialMode", "credentialMode", type=str, required=True, help="Credential mode for the Virtual Edge Nodes")
+@click.option("--globalCredentialId", "globalCredentialId", type=str, default=None, help="UUID of the global credential. Required when credentialMode is GLOBAL")
+@click.option("--parentType", "parentType", type=str, required=True, help="Specifies whether VENs are assigned to a VE or a VE Group")
+@click.option("--parentId", "parentId", type=str, required=True, help="UUID of the parent Virtual Edge or Virtual Edge Group, depending on parentType")
 @click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_virtual_edge_node_bulk_upload(ctx, credentialMode, globalCredentialId, parentType, parentId, body_data, body_file, cmd_fmt, cmd_query):
-    """Bulk addition of Virtual Edge Nodes from xls file."""
+    """Bulk upload Virtual Edge Nodes from XLSX file"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -2371,16 +2848,166 @@ def cmd_virtual_edge_node_bulk_upload(ctx, credentialMode, globalCredentialId, p
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
-@group.command("get-virtual-edge-get")
-@click.option("--globalFilter", "globalFilter", type=str, default=None, help="Global filter")
-@click.option("--columnFilter", "columnFilter", type=str, default=None, help="Filtering criteria in the format: columnFilter=attributeName,keyword,value&colum")
-@click.option("--page", "page", type=int, default=None, help="Page number")
-@click.option("--size", "size", type=int, default=None, help="Page size")
-@click.option("--sort", "sort", type=str, default=None, help="Sort by column")
+@group.command("bulk-recommission-ve-ns")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
-def cmd_get_virtual_edge_get(ctx, globalFilter, columnFilter, page, size, sort, cmd_fmt, cmd_query):
+def cmd_bulk_recommission_ve_ns(ctx, body_data, body_file, cmd_fmt, cmd_query):
+    """Bulk recommission Virtual Edge Nodes"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v1/virtual-edge-nodes/bulk/recommission"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("bulk-force-delete-ve-ns")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_bulk_force_delete_ve_ns(ctx, body_data, body_file, cmd_fmt, cmd_query):
+    """Bulk force delete Virtual Edge Nodes"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v1/virtual-edge-nodes/bulk/force-delete"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("bulk-delete-ve-ns")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_bulk_delete_ve_ns(ctx, body_data, body_file, cmd_fmt, cmd_query):
+    """Bulk delete Virtual Edge Nodes"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v1/virtual-edge-nodes/bulk/delete"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("validate-virtual-edge-node-bulk-delete")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_validate_virtual_edge_node_bulk_delete(ctx, body_data, body_file, cmd_fmt, cmd_query):
+    """Validate Virtual Edge Nodes before bulk delete"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v1/virtual-edge-nodes/bulk/delete/validate"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("bulk-change-ven-group")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_bulk_change_ven_group(ctx, body_data, body_file, cmd_fmt, cmd_query):
+    """Bulk change Virtual Edge Group for multiple VENs"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v1/virtual-edge-nodes/bulk/change-group"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("get-virtual-edge-get")
+@click.option("--sort", "sort", type=str, default=None, help="Sort by column")
+@click.option("--globalFilter", "globalFilter", type=str, default=None, help="Global filter")
+@click.option("--columnFilters", "columnFilters", type=str, default=None, help="Filtering criteria in the format: columnFilters=attributeName,keyword,value&colu")
+@click.option("--page", "page", type=int, default=None, help="Page number")
+@click.option("--size", "size", type=int, default=None, help="Page size")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_get_virtual_edge_get(ctx, sort, globalFilter, columnFilters, page, size, cmd_fmt, cmd_query):
     """Search and filter Virtual Edge Group"""
     if cmd_fmt:
         ctx.format = cmd_fmt
@@ -2388,16 +3015,16 @@ def cmd_get_virtual_edge_get(ctx, globalFilter, columnFilter, page, size, sort, 
         ctx.query = cmd_query
     endpoint = f"/api/topology/v1/virtual-edge-groups"
     params = {}
+    if sort is not None:
+        params["sort"] = sort
     if globalFilter is not None:
         params["globalFilter"] = globalFilter
-    if columnFilter is not None:
-        params["columnFilter"] = columnFilter
+    if columnFilters is not None:
+        params["columnFilters"] = columnFilters
     if page is not None:
         params["page"] = page
     if size is not None:
         params["size"] = size
-    if sort is not None:
-        params["sort"] = sort
     client = ctx.ensure_client()
     try:
         result = client.get(endpoint, params=params)
@@ -2436,29 +3063,91 @@ def cmd_create_virtual_edge_group(ctx, body_data, body_file, cmd_fmt, cmd_query)
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
-@group.command("get-virtual-edge-by-post-post")
-@click.option("--page", "page", type=int, default=None, help="Page number")
-@click.option("--size", "size", type=int, default=None, help="Page size")
-@click.option("--sort", "sort", type=str, default=None, help="Sort by column")
+@group.command("enable-maintenance-for-group")
+@click.argument("id")
 @click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
-def cmd_get_virtual_edge_by_post_post(ctx, page, size, sort, body_data, body_file, cmd_fmt, cmd_query):
-    """Search and filter virtual edge"""
+def cmd_enable_maintenance_for_group(ctx, id, body_data, body_file, cmd_fmt, cmd_query):
+    """Enable Maintenance mode on a batch of Virtual Edges in a group"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v1/virtual-edge-groups/{id}/maintenance/enable"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("disable-maintenance-for-group")
+@click.argument("id")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_disable_maintenance_for_group(ctx, id, body_data, body_file, cmd_fmt, cmd_query):
+    """Disable Maintenance mode on a batch of Virtual Edges in a group"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v1/virtual-edge-groups/{id}/maintenance/disable"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("get-virtual-edge-by-post-post")
+@click.option("--sort", "sort", type=str, default=None, help="Sort by column")
+@click.option("--page", "page", type=int, default=None, help="Page number")
+@click.option("--size", "size", type=int, default=None, help="Page size")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_get_virtual_edge_by_post_post(ctx, sort, page, size, body_data, body_file, cmd_fmt, cmd_query):
+    """Search and filter virtual edge group"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
     endpoint = f"/api/topology/v1/virtual-edge-groups/view"
     params = {}
+    if sort is not None:
+        params["sort"] = sort
     if page is not None:
         params["page"] = page
     if size is not None:
         params["size"] = size
-    if sort is not None:
-        params["sort"] = sort
     body = None
     if body_file:
         import json as _json
@@ -2482,7 +3171,7 @@ def cmd_get_virtual_edge_by_post_post(ctx, page, size, sort, body_data, body_fil
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_create_task_list(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Create a task list, managing the status of published tasks"""
+    """Create a task list"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -2510,7 +3199,7 @@ def cmd_create_task_list(ctx, body_data, body_file, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_get_all_target_sites(ctx, cmd_fmt, cmd_query):
-    """Retrieves all configured deployment targets."""
+    """Get all configured deployment targets"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -2532,7 +3221,7 @@ def cmd_get_all_target_sites(ctx, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_create_or_update_bulk_target_site(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Creates or updates multiple targets in a single transaction."""
+    """Bulk create or update targets"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -2561,7 +3250,7 @@ def cmd_create_or_update_bulk_target_site(ctx, body_data, body_file, cmd_fmt, cm
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_get_target_site(ctx, type_param, cmd_fmt, cmd_query):
-    """Retrieves the target for a specific type."""
+    """Get target for a specific type"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -2584,7 +3273,7 @@ def cmd_get_target_site(ctx, type_param, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_create_or_update_target_site(ctx, type_param, body_data, body_file, cmd_fmt, cmd_query):
-    """Creates a new target or updates the existing target for the specified type."""
+    """Create or update target for a specific type"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -2614,7 +3303,7 @@ def cmd_create_or_update_target_site(ctx, type_param, body_data, body_file, cmd_
 @click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
 def cmd_delete_target_site(ctx, type_param, cmd_fmt, cmd_query, confirm):
-    """Permanently deletes the target for the specified type."""
+    """Delete target for a specific type"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -2667,7 +3356,7 @@ def cmd_bulk_delete_site(ctx, body_data, body_file, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_get_all_global_credentials(ctx, cmd_fmt, cmd_query):
-    """Get global credentials"""
+    """Get all global credentials"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -2689,7 +3378,7 @@ def cmd_get_all_global_credentials(ctx, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_create_global_credentials(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Create a new global credentials."""
+    """Create new global credentials"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -2717,7 +3406,7 @@ def cmd_create_global_credentials(ctx, body_data, body_file, cmd_fmt, cmd_query)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_get_all_flow_exporter(ctx, cmd_fmt, cmd_query):
-    """Get all Flow Exporter"""
+    """Get all flow exporters"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -2739,7 +3428,7 @@ def cmd_get_all_flow_exporter(ctx, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_create_flow_exporter(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Create Flow Exporter"""
+    """Create a flow exporter"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -2762,6 +3451,90 @@ def cmd_create_flow_exporter(ctx, body_data, body_file, cmd_fmt, cmd_query):
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
+@group.command("get-independent-control-mappings")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_get_independent_control_mappings(ctx, cmd_fmt, cmd_query):
+    """Get all Independent Control Mappings for Distribution Zones"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v1/distribution-zones/independent-control-mappings"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.get(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("create-independent-control-mappings")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_create_independent_control_mappings(ctx, body_data, body_file, cmd_fmt, cmd_query):
+    """Create Independent Control Mappings between Distribution Zones"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v1/distribution-zones/independent-control-mappings"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("delete-independent-control-mappings")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
+@pass_context
+def cmd_delete_independent_control_mappings(ctx, body_data, body_file, cmd_fmt, cmd_query, confirm):
+    """Delete Independent Control Mappings"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    if not confirm:
+        click.echo("Use --confirm to execute this destructive operation.", err=True)
+        raise SystemExit(1)
+    endpoint = f"/api/topology/v1/distribution-zones/independent-control-mappings"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.delete(endpoint, params=params, data=body)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
 @group.command("bulk-delete-distribution-zone")
 @click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
@@ -2769,7 +3542,7 @@ def cmd_create_flow_exporter(ctx, body_data, body_file, cmd_fmt, cmd_query):
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_bulk_delete_distribution_zone(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Bulk delete distribution zone."""
+    """Bulk delete Distribution Zones"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -2823,7 +3596,7 @@ def cmd_get_dashboard_metrics(ctx, body_data, body_file, cmd_fmt, cmd_query):
     render(result, ctx.format, ctx.query)
 
 @group.command("get-all-cloud-controllers")
-@click.option("--cloudType", "cloudType", type=str, required=True, help="Type of cloud controllers")
+@click.option("--cloudType", "cloudType", type=str, required=True, help="Type of cloud controllers to retrieve")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
@@ -2846,14 +3619,14 @@ def cmd_get_all_cloud_controllers(ctx, cloudType, cmd_fmt, cmd_query):
     render(result, ctx.format, ctx.query)
 
 @group.command("create-cloud-controller")
-@click.option("--cloudType", "cloudType", type=str, required=True, help="Type of cloud controllers")
+@click.option("--cloudType", "cloudType", type=str, required=True, help="Type of cloud controller to create")
 @click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_create_cloud_controller(ctx, cloudType, body_data, body_file, cmd_fmt, cmd_query):
-    """Create a new cloud controller."""
+    """Create a new cloud controller"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -2873,6 +3646,132 @@ def cmd_create_cloud_controller(ctx, cloudType, body_data, body_file, cmd_fmt, c
     client = ctx.ensure_client()
     try:
         result = client.post(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("get-reconciled-variables")
+@click.argument("id")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_get_reconciled_variables(ctx, id, cmd_fmt, cmd_query):
+    """Reconciled environment variables for a VE"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v2/virtual-edges/{id}/variables"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.get(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("get-status")
+@click.argument("id")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_get_status(ctx, id, cmd_fmt, cmd_query):
+    """Get VEN status"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v2/virtual-edge-nodes/{id}/status"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.get(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("get-permissions")
+@click.argument("id")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_get_permissions(ctx, id, cmd_fmt, cmd_query):
+    """Get VEN permissions"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v2/virtual-edge-nodes/{id}/permissions"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.get(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("get-metrics")
+@click.argument("id")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_get_metrics(ctx, id, cmd_fmt, cmd_query):
+    """Get VEN metrics"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v2/virtual-edge-nodes/{id}/metrics"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.get(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("get-details")
+@click.argument("id")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_get_details(ctx, id, cmd_fmt, cmd_query):
+    """Get VEN details"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v2/virtual-edge-nodes/{id}/details"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.get(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("get-configuration")
+@click.argument("id")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_get_configuration(ctx, id, cmd_fmt, cmd_query):
+    """Get VEN configuration"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v2/virtual-edge-nodes/{id}/configuration"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.get(endpoint, params=params)
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         raise SystemExit(1)
@@ -2899,7 +3798,7 @@ def cmd_get_all_tags(ctx, cmd_fmt, cmd_query):
     render(result, ctx.format, ctx.query)
 
 @group.command("get-site-count-v2")
-@click.option("--durationInHours", "durationInHours", type=int, required=True, help="Site created within last these many hours.")
+@click.option("--durationInHours", "durationInHours", type=int, required=True, help="Number of hours to look back for 'new' sites. Must be between 0 and 24.")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
@@ -2922,16 +3821,16 @@ def cmd_get_site_count_v2(ctx, durationInHours, cmd_fmt, cmd_query):
     render(result, ctx.format, ctx.query)
 
 @group.command("get-all-distribution-zones-get")
-@click.option("--globalFilter", "globalFilter", type=str, default=None, help="Global filter")
-@click.option("--columnFilter", "columnFilter", type=str, default=None, help="Filtering criteria in the format: columnFilter=attributeName,keyword,value&colum")
+@click.option("--globalFilter", "globalFilter", type=str, default=None, help="Global filter — searches across name, description, type, createdBy, and modified")
+@click.option("--columnFilters", "columnFilters", type=str, default=None, help="Column-specific filter in the format: columnFilters=attributeName,keyword,value.")
+@click.option("--sort", "sort", type=str, default=None, help="Sort by column")
 @click.option("--page", "page", type=int, default=None, help="Page number")
 @click.option("--size", "size", type=int, default=None, help="Page size")
-@click.option("--sort", "sort", type=str, default=None, help="Sort by column")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
-def cmd_get_all_distribution_zones_get(ctx, globalFilter, columnFilter, page, size, sort, cmd_fmt, cmd_query):
-    """Get all Distribution Zones"""
+def cmd_get_all_distribution_zones_get(ctx, globalFilter, columnFilters, sort, page, size, cmd_fmt, cmd_query):
+    """Get all Distribution Zones (paginated)"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -2940,8 +3839,44 @@ def cmd_get_all_distribution_zones_get(ctx, globalFilter, columnFilter, page, si
     params = {}
     if globalFilter is not None:
         params["globalFilter"] = globalFilter
-    if columnFilter is not None:
-        params["columnFilter"] = columnFilter
+    if columnFilters is not None:
+        params["columnFilters"] = columnFilters
+    if sort is not None:
+        params["sort"] = sort
+    if page is not None:
+        params["page"] = page
+    if size is not None:
+        params["size"] = size
+    client = ctx.ensure_client()
+    try:
+        result = client.get(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("get-virtual-edge-nodes-for-distribution-zone")
+@click.argument("id")
+@click.option("--globalFilter", "globalFilter", type=str, default=None, help="Global filter")
+@click.option("--columnFilters", "columnFilters", type=str, default=None, help="Filtering criteria in the format: columnFilters=attributeName,keyword,value&colu")
+@click.option("--page", "page", type=int, default=None, help="Page number")
+@click.option("--size", "size", type=int, default=None, help="Page size")
+@click.option("--sort", "sort", type=str, default=None, help="Sort by column")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_get_virtual_edge_nodes_for_distribution_zone(ctx, id, globalFilter, columnFilters, page, size, sort, cmd_fmt, cmd_query):
+    """Get all Virtual Edge Nodes for a Distribution Zone"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v2/distribution-zones/{id}/virtual-edge-nodes"
+    params = {}
+    if globalFilter is not None:
+        params["globalFilter"] = globalFilter
+    if columnFilters is not None:
+        params["columnFilters"] = columnFilters
     if page is not None:
         params["page"] = page
     if size is not None:
@@ -2961,7 +3896,7 @@ def cmd_get_all_distribution_zones_get(ctx, globalFilter, columnFilter, page, si
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_get_loggers_for_all_virtual_edges(ctx, cmd_fmt, cmd_query):
-    """GET /api/topology/v1/virtual-edges/loggers"""
+    """Get loggers for all virtual edges"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -2980,16 +3915,16 @@ def cmd_get_loggers_for_all_virtual_edges(ctx, cmd_fmt, cmd_query):
 @click.argument("id")
 @click.option("--deviceGroup", "deviceGroup", type=str, default=None, help="Device Group name")
 @click.option("--policyGroup", "policyGroup", type=str, required=True, help="Policy Group name")
-@click.option("--globalFilter", "globalFilter", type=str, default=None, help="Global filter")
-@click.option("--columnFilter", "columnFilter", type=str, default=None, help="Filtering criteria in the format: columnFilter=attributeName,keyword,value&colum")
+@click.option("--globalFilter", "globalFilter", type=str, default=None, help="Global filter — searches across ruleName, ruleSource, application, sourceZone, s")
+@click.option("--columnFilters", "columnFilters", type=str, default=None, help="Column-specific filter in the format: columnFilters=attributeName,keyword,value.")
 @click.option("--page", "page", type=int, default=None, help="Page number")
 @click.option("--size", "size", type=int, default=None, help="Page size")
 @click.option("--sort", "sort", type=str, default=None, help="Sort by column")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
-def cmd_get_virtual_edge_node_firewall_rules(ctx, id, deviceGroup, policyGroup, globalFilter, columnFilter, page, size, sort, cmd_fmt, cmd_query):
-    """List of Firewalls and Firewall rules for given Virtual Edge Nodes with pagination"""
+def cmd_get_virtual_edge_node_firewall_rules(ctx, id, deviceGroup, policyGroup, globalFilter, columnFilters, page, size, sort, cmd_fmt, cmd_query):
+    """List of Firewalls and Firewall rules for given Virtual Edge Node with pagination"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -3002,8 +3937,8 @@ def cmd_get_virtual_edge_node_firewall_rules(ctx, id, deviceGroup, policyGroup, 
         params["policyGroup"] = policyGroup
     if globalFilter is not None:
         params["globalFilter"] = globalFilter
-    if columnFilter is not None:
-        params["columnFilter"] = columnFilter
+    if columnFilters is not None:
+        params["columnFilters"] = columnFilters
     if page is not None:
         params["page"] = page
     if size is not None:
@@ -3059,12 +3994,33 @@ def cmd_is_imbalanced(ctx, id, cmd_fmt, cmd_query):
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
+@group.command("get-target-site-history")
+@click.argument("type_param")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_get_target_site_history(ctx, type_param, cmd_fmt, cmd_query):
+    """Retrieves the full history for a specific target type."""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/topology/v1/targets/{type_param}/history"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.get(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
 @group.command("get-target-types")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
 def cmd_get_target_types(ctx, cmd_fmt, cmd_query):
-    """Retrieves all available target types with their descriptions."""
+    """Get all available target types"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -3104,16 +4060,16 @@ def cmd_get_site_count(ctx, durationInHours, cmd_fmt, cmd_query):
 
 @group.command("get-all-ve-ns-for-global-credentials")
 @click.argument("credentialsid")
-@click.option("--globalFilter", "globalFilter", type=str, default=None, help="Global filter")
-@click.option("--columnFilter", "columnFilter", type=str, default=None, help="Filtering criteria in the format: columnFilter=attributeName,keyword,value&colum")
+@click.option("--globalFilter", "globalFilter", type=str, default=None, help="Global filter — searches across ip, hostname, and siteId")
+@click.option("--columnFilters", "columnFilters", type=str, default=None, help="Column-specific filter in the format: columnFilters=attributeName,keyword,value.")
+@click.option("--sort", "sort", type=str, default=None, help="Sort by column")
 @click.option("--page", "page", type=int, default=None, help="Page number")
 @click.option("--size", "size", type=int, default=None, help="Page size")
-@click.option("--sort", "sort", type=str, default=None, help="Sort by column")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
-def cmd_get_all_ve_ns_for_global_credentials(ctx, credentialsid, globalFilter, columnFilter, page, size, sort, cmd_fmt, cmd_query):
-    """Get global credentials"""
+def cmd_get_all_ve_ns_for_global_credentials(ctx, credentialsid, globalFilter, columnFilters, sort, page, size, cmd_fmt, cmd_query):
+    """Get Virtual Edge Nodes using a global credential"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -3122,14 +4078,14 @@ def cmd_get_all_ve_ns_for_global_credentials(ctx, credentialsid, globalFilter, c
     params = {}
     if globalFilter is not None:
         params["globalFilter"] = globalFilter
-    if columnFilter is not None:
-        params["columnFilter"] = columnFilter
+    if columnFilters is not None:
+        params["columnFilters"] = columnFilters
+    if sort is not None:
+        params["sort"] = sort
     if page is not None:
         params["page"] = page
     if size is not None:
         params["size"] = size
-    if sort is not None:
-        params["sort"] = sort
     client = ctx.ensure_client()
     try:
         result = client.get(endpoint, params=params)
@@ -3166,7 +4122,7 @@ def cmd_get_distribution_zone(ctx, id, cmd_fmt, cmd_query):
 @click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
 def cmd_delete_distribution_zone(ctx, id, cmd_fmt, cmd_query, confirm):
-    """Delete distribution zone."""
+    """Delete Distribution Zone"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -3185,9 +4141,9 @@ def cmd_delete_distribution_zone(ctx, id, cmd_fmt, cmd_query, confirm):
     render(result, ctx.format, ctx.query)
 
 @group.command("get-dashboard-count")
-@click.option("--siteIds", "siteIds", type=str, default=None, help="siteIds")
-@click.option("--type", "type_param", type=str, default=None, help="type")
-@click.option("--durationInHours", "durationInHours", type=int, required=True, help="VEs and VENs created within last these many hours.")
+@click.option("--siteIds", "siteIds", type=str, default=None, help="List of site identifiers to filter by")
+@click.option("--type", "type_param", type=str, default=None, help="Type of Virtual Edge (VE) group to filter by")
+@click.option("--durationInHours", "durationInHours", type=int, required=True, help="Time window in hours for counting newly created VEs and VENs")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
@@ -3213,6 +4169,31 @@ def cmd_get_dashboard_count(ctx, siteIds, type_param, durationInHours, cmd_fmt, 
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
+@group.command("force-delete-ven")
+@click.argument("id")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
+@pass_context
+def cmd_force_delete_ven(ctx, id, cmd_fmt, cmd_query, confirm):
+    """Force delete a Virtual Edge Node in decommission state"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    if not confirm:
+        click.echo("Use --confirm to execute this destructive operation.", err=True)
+        raise SystemExit(1)
+    endpoint = f"/api/topology/v1/virtual-edge-nodes/{id}/force"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.delete(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
 @group.command("bulk-delete-credentials")
 @click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
@@ -3221,7 +4202,7 @@ def cmd_get_dashboard_count(ctx, siteIds, type_param, durationInHours, cmd_fmt, 
 @click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
 def cmd_bulk_delete_credentials(ctx, body_data, body_file, cmd_fmt, cmd_query, confirm):
-    """Bulk delete credentials."""
+    """Bulk delete global credentials"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
@@ -3255,7 +4236,7 @@ def cmd_bulk_delete_credentials(ctx, body_data, body_file, cmd_fmt, cmd_query, c
 @click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
 def cmd_bulk_delete_cloud_controllers(ctx, body_data, body_file, cmd_fmt, cmd_query, confirm):
-    """Bulk delete cloud controllers."""
+    """Bulk delete Mist cloud controllers"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:

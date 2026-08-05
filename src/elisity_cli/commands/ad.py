@@ -16,317 +16,6 @@ def group(ctx):
     """Active Directory / Entra ID integration — connectors, users, groups, agents"""
     pass
 
-@group.command("get-user-by-sid-and-domain")
-@click.argument("domain")
-@click.argument("sid")
-@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
-@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@pass_context
-def cmd_get_user_by_sid_and_domain(ctx, domain, sid, cmd_fmt, cmd_query):
-    """Get AD user by SID and Domain"""
-    if cmd_fmt:
-        ctx.format = cmd_fmt
-    if cmd_query:
-        ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/user/{domain}/{sid}"
-    params = None
-    client = ctx.ensure_client()
-    try:
-        result = client.get(endpoint, params=params)
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
-    render(result, ctx.format, ctx.query)
-
-@group.command("update-user")
-@click.argument("domain")
-@click.argument("sid")
-@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
-@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
-@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
-@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@pass_context
-def cmd_update_user(ctx, domain, sid, body_data, body_file, cmd_fmt, cmd_query):
-    """Update AD user"""
-    if cmd_fmt:
-        ctx.format = cmd_fmt
-    if cmd_query:
-        ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/user/{domain}/{sid}"
-    params = None
-    body = None
-    if body_file:
-        import json as _json
-        with open(body_file) as f:
-            body = _json.load(f)
-    elif body_data:
-        import json as _json
-        body = _json.loads(body_data)
-    client = ctx.ensure_client()
-    try:
-        result = client.put(endpoint, data=body, params=params)
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
-    render(result, ctx.format, ctx.query)
-
-@group.command("delete-user")
-@click.argument("domain")
-@click.argument("sid")
-@click.option("--nodeId", "nodeId", type=str, required=True, help="AD Agent node identifier")
-@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
-@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
-@pass_context
-def cmd_delete_user(ctx, domain, sid, nodeId, cmd_fmt, cmd_query, confirm):
-    """Delete AD user"""
-    if cmd_fmt:
-        ctx.format = cmd_fmt
-    if cmd_query:
-        ctx.query = cmd_query
-    if not confirm:
-        click.echo("Use --confirm to execute this destructive operation.", err=True)
-        raise SystemExit(1)
-    endpoint = f"/api/ad-connector-service/v1/user/{domain}/{sid}"
-    params = {}
-    if nodeId is not None:
-        params["nodeId"] = nodeId
-    client = ctx.ensure_client()
-    try:
-        result = client.delete(endpoint, params=params)
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
-    render(result, ctx.format, ctx.query)
-
-@group.command("get-group-by-sid-and-domain")
-@click.argument("domain")
-@click.argument("sid")
-@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
-@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@pass_context
-def cmd_get_group_by_sid_and_domain(ctx, domain, sid, cmd_fmt, cmd_query):
-    """Get AD group by SID and Domain"""
-    if cmd_fmt:
-        ctx.format = cmd_fmt
-    if cmd_query:
-        ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/group/{domain}/{sid}"
-    params = None
-    client = ctx.ensure_client()
-    try:
-        result = client.get(endpoint, params=params)
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
-    render(result, ctx.format, ctx.query)
-
-@group.command("update-group")
-@click.argument("domain")
-@click.argument("sid")
-@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
-@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
-@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
-@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@pass_context
-def cmd_update_group(ctx, domain, sid, body_data, body_file, cmd_fmt, cmd_query):
-    """Update AD group"""
-    if cmd_fmt:
-        ctx.format = cmd_fmt
-    if cmd_query:
-        ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/group/{domain}/{sid}"
-    params = None
-    body = None
-    if body_file:
-        import json as _json
-        with open(body_file) as f:
-            body = _json.load(f)
-    elif body_data:
-        import json as _json
-        body = _json.loads(body_data)
-    client = ctx.ensure_client()
-    try:
-        result = client.put(endpoint, data=body, params=params)
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
-    render(result, ctx.format, ctx.query)
-
-@group.command("delete-group")
-@click.argument("domain")
-@click.argument("sid")
-@click.option("--nodeId", "nodeId", type=str, required=True, help="AD Agent node identifier")
-@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
-@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
-@pass_context
-def cmd_delete_group(ctx, domain, sid, nodeId, cmd_fmt, cmd_query, confirm):
-    """Delete AD group"""
-    if cmd_fmt:
-        ctx.format = cmd_fmt
-    if cmd_query:
-        ctx.query = cmd_query
-    if not confirm:
-        click.echo("Use --confirm to execute this destructive operation.", err=True)
-        raise SystemExit(1)
-    endpoint = f"/api/ad-connector-service/v1/group/{domain}/{sid}"
-    params = {}
-    if nodeId is not None:
-        params["nodeId"] = nodeId
-    client = ctx.ensure_client()
-    try:
-        result = client.delete(endpoint, params=params)
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
-    render(result, ctx.format, ctx.query)
-
-@group.command("update-group-put")
-@click.argument("dn")
-@click.option("--nodeId", "nodeId", type=str, required=True, help="AD Agent node identifier")
-@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
-@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
-@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
-@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@pass_context
-def cmd_update_group_put(ctx, dn, nodeId, body_data, body_file, cmd_fmt, cmd_query):
-    """Update AD group"""
-    if cmd_fmt:
-        ctx.format = cmd_fmt
-    if cmd_query:
-        ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/group/{dn}"
-    params = {}
-    if nodeId is not None:
-        params["nodeId"] = nodeId
-    body = None
-    if body_file:
-        import json as _json
-        with open(body_file) as f:
-            body = _json.load(f)
-    elif body_data:
-        import json as _json
-        body = _json.loads(body_data)
-    client = ctx.ensure_client()
-    try:
-        result = client.put(endpoint, data=body, params=params)
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
-    render(result, ctx.format, ctx.query)
-
-@group.command("delete-group-delete")
-@click.argument("dn")
-@click.option("--nodeId", "nodeId", type=str, required=True, help="AD Agent node identifier")
-@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
-@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
-@pass_context
-def cmd_delete_group_delete(ctx, dn, nodeId, cmd_fmt, cmd_query, confirm):
-    """Delete AD group"""
-    if cmd_fmt:
-        ctx.format = cmd_fmt
-    if cmd_query:
-        ctx.query = cmd_query
-    if not confirm:
-        click.echo("Use --confirm to execute this destructive operation.", err=True)
-        raise SystemExit(1)
-    endpoint = f"/api/ad-connector-service/v1/group/{dn}"
-    params = {}
-    if nodeId is not None:
-        params["nodeId"] = nodeId
-    client = ctx.ensure_client()
-    try:
-        result = client.delete(endpoint, params=params)
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
-    render(result, ctx.format, ctx.query)
-
-@group.command("get-device-by-sid-and-domain")
-@click.argument("domain")
-@click.argument("sid")
-@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
-@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@pass_context
-def cmd_get_device_by_sid_and_domain(ctx, domain, sid, cmd_fmt, cmd_query):
-    """Get AD device by SID and Domain"""
-    if cmd_fmt:
-        ctx.format = cmd_fmt
-    if cmd_query:
-        ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/device/{domain}/{sid}"
-    params = None
-    client = ctx.ensure_client()
-    try:
-        result = client.get(endpoint, params=params)
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
-    render(result, ctx.format, ctx.query)
-
-@group.command("update-device-ad")
-@click.argument("domain")
-@click.argument("sid")
-@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
-@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
-@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
-@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@pass_context
-def cmd_update_device_ad(ctx, domain, sid, body_data, body_file, cmd_fmt, cmd_query):
-    """Update AD device"""
-    if cmd_fmt:
-        ctx.format = cmd_fmt
-    if cmd_query:
-        ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/device/{domain}/{sid}"
-    params = None
-    body = None
-    if body_file:
-        import json as _json
-        with open(body_file) as f:
-            body = _json.load(f)
-    elif body_data:
-        import json as _json
-        body = _json.loads(body_data)
-    client = ctx.ensure_client()
-    try:
-        result = client.put(endpoint, data=body, params=params)
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
-    render(result, ctx.format, ctx.query)
-
-@group.command("delete-device-ad")
-@click.argument("domain")
-@click.argument("sid")
-@click.option("--nodeId", "nodeId", type=str, required=True, help="AD Agent node identifier")
-@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
-@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
-@pass_context
-def cmd_delete_device_ad(ctx, domain, sid, nodeId, cmd_fmt, cmd_query, confirm):
-    """Delete AD device"""
-    if cmd_fmt:
-        ctx.format = cmd_fmt
-    if cmd_query:
-        ctx.query = cmd_query
-    if not confirm:
-        click.echo("Use --confirm to execute this destructive operation.", err=True)
-        raise SystemExit(1)
-    endpoint = f"/api/ad-connector-service/v1/device/{domain}/{sid}"
-    params = {}
-    if nodeId is not None:
-        params["nodeId"] = nodeId
-    client = ctx.ensure_client()
-    try:
-        result = client.delete(endpoint, params=params)
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
-    render(result, ctx.format, ctx.query)
-
 @group.command("ping")
 @click.argument("nodeid")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
@@ -343,6 +32,37 @@ def cmd_ping(ctx, nodeid, cmd_fmt, cmd_query):
     client = ctx.ensure_client()
     try:
         result = client.put(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("set-distribution-zones")
+@click.argument("nodeid")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_set_distribution_zones(ctx, nodeid, body_data, body_file, cmd_fmt, cmd_query):
+    """Set distribution zones for a connector"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/ad-connector-service/v1/connectors/{nodeid}/distribution-zones"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.put(endpoint, data=body, params=params)
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         raise SystemExit(1)
@@ -401,114 +121,58 @@ def cmd_put_configuration_value(ctx, body_data, body_file, cmd_fmt, cmd_query):
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
-@group.command("create-user")
-@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
-@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@group.command("get-activity-logs")
+@click.option("--nodeId", "nodeId", type=str, default=None, help="Optional AD Agent node identifier. If omitted, events from all agents are return")
+@click.option("--globalFilter", "globalFilter", type=str, default=None, help="Global filter")
+@click.option("--page", "page", type=int, default=None, help="Page number")
+@click.option("--size", "size", type=int, default=None, help="Page size")
+@click.option("--sort", "sort", type=str, default=None, help="Sort by column")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
-def cmd_create_user(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Add AD user"""
+def cmd_get_activity_logs(ctx, nodeId, globalFilter, page, size, sort, cmd_fmt, cmd_query):
+    """Query agent activity log"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/user"
-    params = None
-    body = None
-    if body_file:
-        import json as _json
-        with open(body_file) as f:
-            body = _json.load(f)
-    elif body_data:
-        import json as _json
-        body = _json.loads(body_data)
+    endpoint = f"/api/ad-connector-service/v2/agent/activity"
+    params = {}
+    if nodeId is not None:
+        params["nodeId"] = nodeId
+    if globalFilter is not None:
+        params["globalFilter"] = globalFilter
+    if page is not None:
+        params["page"] = page
+    if size is not None:
+        params["size"] = size
+    if sort is not None:
+        params["sort"] = sort
     client = ctx.ensure_client()
     try:
-        result = client.post(endpoint, data=body, params=params)
+        result = client.get(endpoint, params=params)
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
-@group.command("detach-user")
-@click.argument("domain")
-@click.argument("sid")
+@group.command("save-activity-logs")
+@click.option("--nodeId", "nodeId", type=str, required=True, help="AD Agent node identifier")
 @click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
-def cmd_detach_user(ctx, domain, sid, body_data, body_file, cmd_fmt, cmd_query):
-    """Detach AD user"""
+def cmd_save_activity_logs(ctx, nodeId, body_data, body_file, cmd_fmt, cmd_query):
+    """Receive activity log events from agent"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/user/{domain}/{sid}/detach"
-    params = None
-    body = None
-    if body_file:
-        import json as _json
-        with open(body_file) as f:
-            body = _json.load(f)
-    elif body_data:
-        import json as _json
-        body = _json.loads(body_data)
-    client = ctx.ensure_client()
-    try:
-        result = client.post(endpoint, data=body, params=params)
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
-    render(result, ctx.format, ctx.query)
-
-@group.command("attach-user")
-@click.argument("domain")
-@click.argument("sid")
-@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
-@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
-@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
-@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@pass_context
-def cmd_attach_user(ctx, domain, sid, body_data, body_file, cmd_fmt, cmd_query):
-    """Attach AD user"""
-    if cmd_fmt:
-        ctx.format = cmd_fmt
-    if cmd_query:
-        ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/user/{domain}/{sid}/attach"
-    params = None
-    body = None
-    if body_file:
-        import json as _json
-        with open(body_file) as f:
-            body = _json.load(f)
-    elif body_data:
-        import json as _json
-        body = _json.loads(body_data)
-    client = ctx.ensure_client()
-    try:
-        result = client.post(endpoint, data=body, params=params)
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
-    render(result, ctx.format, ctx.query)
-
-@group.command("refresh-user")
-@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
-@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
-@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
-@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@pass_context
-def cmd_refresh_user(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Refresh AD user"""
-    if cmd_fmt:
-        ctx.format = cmd_fmt
-    if cmd_query:
-        ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/user/refresh"
-    params = None
+    endpoint = f"/api/ad-connector-service/v2/agent/activity"
+    params = {}
+    if nodeId is not None:
+        params["nodeId"] = nodeId
     body = None
     if body_file:
         import json as _json
@@ -589,95 +253,41 @@ def cmd_export_users(ctx, body_data, body_file, cmd_fmt, cmd_query):
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
-@group.command("create-group")
-@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
-@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@group.command("refresh-all-entra")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
-def cmd_create_group(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Update memberOf"""
+def cmd_refresh_all_entra(ctx, cmd_fmt, cmd_query):
+    """Refresh all Entra subscriptions"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/memberOf"
+    endpoint = f"/api/ad-connector-service/v1/refresh/entra"
     params = None
-    body = None
-    if body_file:
-        import json as _json
-        with open(body_file) as f:
-            body = _json.load(f)
-    elif body_data:
-        import json as _json
-        body = _json.loads(body_data)
     client = ctx.ensure_client()
     try:
-        result = client.post(endpoint, data=body, params=params)
+        result = client.post(endpoint, params=params)
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
-@group.command("create-group-delete")
-@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
-@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@group.command("refresh-all-ad-on-prem")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
-def cmd_create_group_delete(ctx, body_data, body_file, cmd_fmt, cmd_query, confirm):
-    """Delete memberOf"""
+def cmd_refresh_all_ad_on_prem(ctx, cmd_fmt, cmd_query):
+    """Refresh all AD on-prem subscriptions"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
-    if not confirm:
-        click.echo("Use --confirm to execute this destructive operation.", err=True)
-        raise SystemExit(1)
-    endpoint = f"/api/ad-connector-service/v1/memberOf"
+    endpoint = f"/api/ad-connector-service/v1/refresh/ad-onprem"
     params = None
-    body = None
-    if body_file:
-        import json as _json
-        with open(body_file) as f:
-            body = _json.load(f)
-    elif body_data:
-        import json as _json
-        body = _json.loads(body_data)
     client = ctx.ensure_client()
     try:
-        result = client.delete(endpoint, params=params, data=body)
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
-    render(result, ctx.format, ctx.query)
-
-@group.command("create-group-post")
-@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
-@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
-@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
-@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@pass_context
-def cmd_create_group_post(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Add AD group"""
-    if cmd_fmt:
-        ctx.format = cmd_fmt
-    if cmd_query:
-        ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/group"
-    params = None
-    body = None
-    if body_file:
-        import json as _json
-        with open(body_file) as f:
-            body = _json.load(f)
-    elif body_data:
-        import json as _json
-        body = _json.loads(body_data)
-    client = ctx.ensure_client()
-    try:
-        result = client.post(endpoint, data=body, params=params)
+        result = client.post(endpoint, params=params)
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         raise SystemExit(1)
@@ -783,155 +393,25 @@ def cmd_update_auth(ctx, body_data, body_file, cmd_fmt, cmd_query):
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
-@group.command("add-device-ad")
-@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
-@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@group.command("delete-auth")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
-def cmd_add_device_ad(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Add AD device"""
+def cmd_delete_auth(ctx, cmd_fmt, cmd_query, confirm):
+    """Delete Entra authentication and all related data"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/device"
-    params = None
-    body = None
-    if body_file:
-        import json as _json
-        with open(body_file) as f:
-            body = _json.load(f)
-    elif body_data:
-        import json as _json
-        body = _json.loads(body_data)
-    client = ctx.ensure_client()
-    try:
-        result = client.post(endpoint, data=body, params=params)
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
+    if not confirm:
+        click.echo("Use --confirm to execute this destructive operation.", err=True)
         raise SystemExit(1)
-    render(result, ctx.format, ctx.query)
-
-@group.command("detach-device")
-@click.argument("domain")
-@click.argument("sid")
-@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
-@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
-@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
-@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@pass_context
-def cmd_detach_device(ctx, domain, sid, body_data, body_file, cmd_fmt, cmd_query):
-    """Detach AD device"""
-    if cmd_fmt:
-        ctx.format = cmd_fmt
-    if cmd_query:
-        ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/device/{domain}/{sid}/detach"
+    endpoint = f"/api/ad-connector-service/v1/entra/auth"
     params = None
-    body = None
-    if body_file:
-        import json as _json
-        with open(body_file) as f:
-            body = _json.load(f)
-    elif body_data:
-        import json as _json
-        body = _json.loads(body_data)
     client = ctx.ensure_client()
     try:
-        result = client.post(endpoint, data=body, params=params)
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
-    render(result, ctx.format, ctx.query)
-
-@group.command("attach-device")
-@click.argument("domain")
-@click.argument("sid")
-@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
-@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
-@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
-@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@pass_context
-def cmd_attach_device(ctx, domain, sid, body_data, body_file, cmd_fmt, cmd_query):
-    """Attach AD device"""
-    if cmd_fmt:
-        ctx.format = cmd_fmt
-    if cmd_query:
-        ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/device/{domain}/{sid}/attach"
-    params = None
-    body = None
-    if body_file:
-        import json as _json
-        with open(body_file) as f:
-            body = _json.load(f)
-    elif body_data:
-        import json as _json
-        body = _json.loads(body_data)
-    client = ctx.ensure_client()
-    try:
-        result = client.post(endpoint, data=body, params=params)
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
-    render(result, ctx.format, ctx.query)
-
-@group.command("refresh-device")
-@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
-@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
-@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
-@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@pass_context
-def cmd_refresh_device(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Refresh AD device"""
-    if cmd_fmt:
-        ctx.format = cmd_fmt
-    if cmd_query:
-        ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/device/refresh"
-    params = None
-    body = None
-    if body_file:
-        import json as _json
-        with open(body_file) as f:
-            body = _json.load(f)
-    elif body_data:
-        import json as _json
-        body = _json.loads(body_data)
-    client = ctx.ensure_client()
-    try:
-        result = client.post(endpoint, data=body, params=params)
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
-    render(result, ctx.format, ctx.query)
-
-@group.command("process-dc-status")
-@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
-@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
-@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
-@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@pass_context
-def cmd_process_dc_status(ctx, body_data, body_file, cmd_fmt, cmd_query):
-    """Process DcStatus"""
-    if cmd_fmt:
-        ctx.format = cmd_fmt
-    if cmd_query:
-        ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/dc-status"
-    params = None
-    body = None
-    if body_file:
-        import json as _json
-        with open(body_file) as f:
-            body = _json.load(f)
-    elif body_data:
-        import json as _json
-        body = _json.loads(body_data)
-    client = ctx.ensure_client()
-    try:
-        result = client.post(endpoint, data=body, params=params)
+        result = client.delete(endpoint, params=params)
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         raise SystemExit(1)
@@ -1017,6 +497,100 @@ def cmd_resync(ctx, nodeid, cmd_fmt, cmd_query):
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
+@group.command("restart")
+@click.argument("nodeid")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_restart(ctx, nodeid, cmd_fmt, cmd_query):
+    """Restart the connector"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/ad-connector-service/v1/connectors/restart/{nodeid}"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("upload-logs")
+@click.argument("nodeid")
+@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
+@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_upload_logs(ctx, nodeid, body_data, body_file, cmd_fmt, cmd_query):
+    """Upload agent logs"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/ad-connector-service/v1/agent/{nodeid}/logs"
+    params = None
+    body = None
+    if body_file:
+        import json as _json
+        with open(body_file) as f:
+            body = _json.load(f)
+    elif body_data:
+        import json as _json
+        body = _json.loads(body_data)
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, data=body, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("get-pull-status")
+@click.argument("nodeid")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_get_pull_status(ctx, nodeid, cmd_fmt, cmd_query):
+    """Get the status of a previously-initiated log pull; on success streams the ZIP bytes"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/ad-connector-service/v1/agent/{nodeid}/logs/pull"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.get(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("pull-logs")
+@click.argument("nodeid")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_pull_logs(ctx, nodeid, cmd_fmt, cmd_query):
+    """Initiate a log pull from an AD Agent"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/ad-connector-service/v1/agent/{nodeid}/logs/pull"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
 @group.command("update-agent-to-version")
 @click.option("--nodeId", "nodeId", type=str, required=True, help="AD Agent node identifier")
 @click.option("--versionToUpdate", "versionToUpdate", type=str, default=None, help="Optionally, When given then upgrade agent to the specified version. Such value a")
@@ -1035,6 +609,26 @@ def cmd_update_agent_to_version(ctx, nodeId, versionToUpdate, cmd_fmt, cmd_query
         params["nodeId"] = nodeId
     if versionToUpdate is not None:
         params["versionToUpdate"] = versionToUpdate
+    client = ctx.ensure_client()
+    try:
+        result = client.post(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("update-all-agents-to-latest-version")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_update_all_agents_to_latest_version(ctx, cmd_fmt, cmd_query):
+    """Update all AD Agents to latest version"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/ad-connector-service/v1/agent/update-all"
+    params = None
     client = ctx.ensure_client()
     try:
         result = client.post(endpoint, params=params)
@@ -1235,10 +829,11 @@ def cmd_update_agent_service_credentials(ctx, nodeId, body_data, body_file, cmd_
 @click.option("--nodeId", "nodeId", type=str, required=True, help="AD Agent node identifier")
 @click.option("--loggingVersion", "loggingVersion", type=int, default=None, help="Current logging version. If the provided loggingVersion parameter is the same or")
 @click.option("--configVersion", "configVersion", type=int, default=None, help="Current config version. Returns null if it is equal to or greater than the versi")
+@click.option("--syslogVersion", "syslogVersion", type=int, default=None, help="Current syslog version. If the provided syslogVersion parameter is the same or g")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
-def cmd_get_ad_agent_config(ctx, nodeId, loggingVersion, configVersion, cmd_fmt, cmd_query):
+def cmd_get_ad_agent_config(ctx, nodeId, loggingVersion, configVersion, syslogVersion, cmd_fmt, cmd_query):
     """Get config for specific AD Agent"""
     if cmd_fmt:
         ctx.format = cmd_fmt
@@ -1252,6 +847,8 @@ def cmd_get_ad_agent_config(ctx, nodeId, loggingVersion, configVersion, cmd_fmt,
         params["loggingVersion"] = loggingVersion
     if configVersion is not None:
         params["configVersion"] = configVersion
+    if syslogVersion is not None:
+        params["syslogVersion"] = syslogVersion
     client = ctx.ensure_client()
     try:
         result = client.get(endpoint, params=params)
@@ -1293,34 +890,27 @@ def cmd_save_ad_agent_config(ctx, nodeId, body_data, body_file, cmd_fmt, cmd_que
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
-@group.command("migrate-old-ad-agent-config")
+@group.command("get-dc-bookmark")
 @click.option("--nodeId", "nodeId", type=str, required=True, help="AD Agent node identifier")
-@click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
-@click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
+@click.option("--hostname", "hostname", type=str, required=True, help="Domain Controller hostname")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
-def cmd_migrate_old_ad_agent_config(ctx, nodeId, body_data, body_file, cmd_fmt, cmd_query):
-    """Migrate old config for specific AD Agent"""
+def cmd_get_dc_bookmark(ctx, nodeId, hostname, cmd_fmt, cmd_query):
+    """Get DC bookmark for specific AD Agent and DC hostname"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/agent/config/migration"
+    endpoint = f"/api/ad-connector-service/v2/agent/dc/bookmark"
     params = {}
     if nodeId is not None:
         params["nodeId"] = nodeId
-    body = None
-    if body_file:
-        import json as _json
-        with open(body_file) as f:
-            body = _json.load(f)
-    elif body_data:
-        import json as _json
-        body = _json.loads(body_data)
+    if hostname is not None:
+        params["hostname"] = hostname
     client = ctx.ensure_client()
     try:
-        result = client.post(endpoint, data=body, params=params)
+        result = client.get(endpoint, params=params)
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         raise SystemExit(1)
@@ -1414,26 +1004,6 @@ def cmd_get_users_count_data(ctx, cmd_fmt, cmd_query):
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
-@group.command("get-current-time")
-@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
-@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@pass_context
-def cmd_get_current_time(ctx, cmd_fmt, cmd_query):
-    """Get current time"""
-    if cmd_fmt:
-        ctx.format = cmd_fmt
-    if cmd_query:
-        ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/time/now"
-    params = None
-    client = ctx.ensure_client()
-    try:
-        result = client.get(endpoint, params=params)
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
-    render(result, ctx.format, ctx.query)
-
 @group.command("get-suppressed-ip-attaches")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
@@ -1446,41 +1016,6 @@ def cmd_get_suppressed_ip_attaches(ctx, cmd_fmt, cmd_query):
         ctx.query = cmd_query
     endpoint = f"/api/ad-connector-service/v1/ip-attach/suppressed"
     params = None
-    client = ctx.ensure_client()
-    try:
-        result = client.get(endpoint, params=params)
-    except Exception as e:
-        click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
-    render(result, ctx.format, ctx.query)
-
-@group.command("get-groups-view")
-@click.option("--globalFilter", "globalFilter", type=str, default=None, help="Global filter")
-@click.option("--columnFilter", "columnFilter", type=str, default=None, help="Filtering criteria in the format: columnFilter=deviceAttributeName,keyword,value")
-@click.option("--page", "page", type=int, default=None, help="Page number")
-@click.option("--size", "size", type=int, default=None, help="Page size")
-@click.option("--sort", "sort", type=str, default=None, help="Sort by column")
-@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
-@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@pass_context
-def cmd_get_groups_view(ctx, globalFilter, columnFilter, page, size, sort, cmd_fmt, cmd_query):
-    """Get groups view"""
-    if cmd_fmt:
-        ctx.format = cmd_fmt
-    if cmd_query:
-        ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/group/view"
-    params = {}
-    if globalFilter is not None:
-        params["globalFilter"] = globalFilter
-    if columnFilter is not None:
-        params["columnFilter"] = columnFilter
-    if page is not None:
-        params["page"] = page
-    if size is not None:
-        params["size"] = size
-    if sort is not None:
-        params["sort"] = sort
     client = ctx.ensure_client()
     try:
         result = client.get(endpoint, params=params)
@@ -1541,18 +1076,17 @@ def cmd_status(ctx, cmd_fmt, cmd_query):
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
-@group.command("get-device")
-@click.argument("id")
+@group.command("get-isolated-distribution-zones")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
-def cmd_get_device(ctx, id, cmd_fmt, cmd_query):
-    """Get AD device"""
+def cmd_get_isolated_distribution_zones(ctx, cmd_fmt, cmd_query):
+    """GET /api/ad-connector-service/v1/distribution-zones"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
-    endpoint = f"/api/ad-connector-service/v1/device/{id}"
+    endpoint = f"/api/ad-connector-service/v1/distribution-zones"
     params = None
     client = ctx.ensure_client()
     try:
@@ -1585,11 +1119,12 @@ def cmd_get_connector_by_id(ctx, nodeid, cmd_fmt, cmd_query):
 
 @group.command("unregister-connector")
 @click.argument("nodeid")
+@click.option("--deleteAdData", "deleteAdData", type=bool, default=False, help="When true, also delete all AD data (users, devices) for the connector's domain i")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
-def cmd_unregister_connector(ctx, nodeid, cmd_fmt, cmd_query, confirm):
+def cmd_unregister_connector(ctx, nodeid, deleteAdData, cmd_fmt, cmd_query, confirm):
     """Unregister the connector"""
     if cmd_fmt:
         ctx.format = cmd_fmt
@@ -1599,10 +1134,53 @@ def cmd_unregister_connector(ctx, nodeid, cmd_fmt, cmd_query, confirm):
         click.echo("Use --confirm to execute this destructive operation.", err=True)
         raise SystemExit(1)
     endpoint = f"/api/ad-connector-service/v1/connectors/{nodeid}"
-    params = None
+    params = {}
+    if deleteAdData is not None:
+        params["deleteAdData"] = deleteAdData
     client = ctx.ensure_client()
     try:
         result = client.delete(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("get-connector-deletion-context")
+@click.argument("nodeid")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_get_connector_deletion_context(ctx, nodeid, cmd_fmt, cmd_query):
+    """Get connector deletion context"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/ad-connector-service/v1/connectors/{nodeid}/deletion-context"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.get(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
+@group.command("get-distribution-zone-assignments")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_get_distribution_zone_assignments(ctx, cmd_fmt, cmd_query):
+    """Get distribution zone assignments per connector"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/ad-connector-service/v1/connectors/distribution-zone-assignments"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.get(endpoint, params=params)
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         raise SystemExit(1)
@@ -1642,10 +1220,13 @@ def cmd_get_attribute_values(ctx, id, searchText, page, size, cmd_fmt, cmd_query
 
 @group.command("get-agents-and-dcs")
 @click.option("--globalFilter", "globalFilter", type=str, default=None, help="Global filter")
+@click.option("--page", "page", type=int, default=None, help="Page number")
+@click.option("--size", "size", type=int, default=None, help="Page size")
+@click.option("--sort", "sort", type=str, default=None, help="Sort by column")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
-def cmd_get_agents_and_dcs(ctx, globalFilter, cmd_fmt, cmd_query):
+def cmd_get_agents_and_dcs(ctx, globalFilter, page, size, sort, cmd_fmt, cmd_query):
     """Get list of AD Agents and DCs"""
     if cmd_fmt:
         ctx.format = cmd_fmt
@@ -1655,6 +1236,12 @@ def cmd_get_agents_and_dcs(ctx, globalFilter, cmd_fmt, cmd_query):
     params = {}
     if globalFilter is not None:
         params["globalFilter"] = globalFilter
+    if page is not None:
+        params["page"] = page
+    if size is not None:
+        params["size"] = size
+    if sort is not None:
+        params["sort"] = sort
     client = ctx.ensure_client()
     try:
         result = client.get(endpoint, params=params)
@@ -1709,29 +1296,27 @@ def cmd_get_connectors_get(ctx, cmd_fmt, cmd_query):
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
-@group.command("delete-domain-data")
-@click.argument("domain")
-@click.option("--before", "before", type=str, default=None, help="Optional timestamp to delete data before this point, if null then delete all")
+@group.command("get-syslog-credentials")
+@click.option("--nodeId", "nodeId", type=str, required=True, help="AD Agent node identifier")
+@click.option("--version", "version", type=int, default=None, help="Optional. When given, if ADCS has a newer version it responds with the updated c")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
-@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
-def cmd_delete_domain_data(ctx, domain, before, cmd_fmt, cmd_query, confirm):
-    """Delete all data related to the domain"""
+def cmd_get_syslog_credentials(ctx, nodeId, version, cmd_fmt, cmd_query):
+    """Get syslog credentials"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
-    if not confirm:
-        click.echo("Use --confirm to execute this destructive operation.", err=True)
-        raise SystemExit(1)
-    endpoint = f"/api/ad-connector-service/v1/domain/{domain}"
+    endpoint = f"/api/ad-connector-service/v1/agent/credentials/syslog"
     params = {}
-    if before is not None:
-        params["before"] = before
+    if nodeId is not None:
+        params["nodeId"] = nodeId
+    if version is not None:
+        params["version"] = version
     client = ctx.ensure_client()
     try:
-        result = client.delete(endpoint, params=params)
+        result = client.get(endpoint, params=params)
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         raise SystemExit(1)

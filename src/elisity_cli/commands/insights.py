@@ -636,6 +636,27 @@ def cmd_recreate_policy_suggestions(ctx, body_data, body_file, cmd_fmt, cmd_quer
         raise SystemExit(1)
     render(result, ctx.format, ctx.query)
 
+@group.command("get-suggestion-match-criteria")
+@click.argument("policygroupid")
+@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
+@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@pass_context
+def cmd_get_suggestion_match_criteria(ctx, policygroupid, cmd_fmt, cmd_query):
+    """Get Suggestion match criteria for a Policy Group"""
+    if cmd_fmt:
+        ctx.format = cmd_fmt
+    if cmd_query:
+        ctx.query = cmd_query
+    endpoint = f"/api/policy/v1/insights/policy-groups/{policygroupid}/suggestion-match-criteria"
+    params = None
+    client = ctx.ensure_client()
+    try:
+        result = client.get(endpoint, params=params)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    render(result, ctx.format, ctx.query)
+
 @group.command("get-policy-groups-suggestion-list-get")
 @click.argument("category")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)

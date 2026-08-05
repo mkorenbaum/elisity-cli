@@ -98,8 +98,13 @@ class TestCommandCounts:
         assert len(devices.group.commands) >= 50
 
     def test_ad_commands(self):
+        # 61 -> 49 in CCC 26.7: the spec removed 28 AD operations (the AD
+        # Device / Group / User / Member surface) as part of consolidating onto
+        # AD Agent V2, against 16 added. Every one of the 28 is in the diff's
+        # `removed` list — see output/SPEC-DIFF-26.7.md. This is a deliberate
+        # upstream removal, not command loss, so the floor moves down with it.
         from elisity_cli.commands import ad
-        assert len(ad.group.commands) >= 50
+        assert len(ad.group.commands) >= 45
 
     def test_connectors_commands(self):
         from elisity_cli.commands import connectors
