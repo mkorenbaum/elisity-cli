@@ -197,13 +197,16 @@ def _unique_name(base: str, used: set, suffix: str = "") -> str:
     return candidate
 
 
-def resolve_parameter_names(method: str, path_params: list, query_params: list,
-                            has_body: bool) -> tuple:
+def resolve_parameter_names(method: str, path_params: list, query_params: list) -> tuple:
     """Assign a collision-free Click flag + Python dest to every parameter.
 
     The wire name (what goes into the URL path or query string) is never
     changed — only the Python identifier, and the CLI flag if and only if it
     would collide with one the command already owns.
+
+    The request-body flags are reserved unconditionally, not just when the
+    operation has a body — a parameter named `body` on a body-less operation is
+    harmless to rename and keeps the rule simple.
     """
     used_dests = set(RESERVED_DESTS)
     used_flags = set(RESERVED_FLAGS)
@@ -342,7 +345,7 @@ def generate_command(method: str, path: str, op: dict, cmd_name: str) -> str:
     func_name = python_safe(cmd_name)
 
     # Collision-free Click flags + Python identifiers. Wire names are unchanged.
-    rpath, rquery = resolve_parameter_names(method, path_params, query_params, has_body)
+    rpath, rquery = resolve_parameter_names(method, path_params, query_params)
 
     lines = []
 
