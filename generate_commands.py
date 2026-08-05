@@ -39,6 +39,19 @@ DEFAULT_OUTPUT_DIR = Path(__file__).parent / "src" / "elisity_cli" / "commands"
 HANDCODED_GROUPS = ("glossary", "reporting")
 
 # Map OpenAPI tags to CLI command group names
+#
+# CCC 26.7 renamed a large set of tags from `kebab-case-controller` style to
+# human-readable names ("site-controller" -> "Sites"). The 26.3 names are
+# deliberately KEPT alongside the 26.7 ones: they cost nothing, and they let the
+# generator still reproduce the 26.3 command set byte-for-byte, which is the
+# regression check that proves a generator edit changed nothing it should not.
+#
+# Every tag in a spec MUST resolve here. `main()` fails the generation and names
+# the offenders if any do not — see the assert_every_tag_mapped guard. The
+# path-prefix fallback in resolve_group() is a safety net for reading a spec,
+# not a licence to leave tags unmapped: it silently routed 6 renamed
+# `Connectors Configurations` operations from `connectors` into `devices` on the
+# 26.7 bump, which is exactly the class of drift the guard now prevents.
 TAG_TO_GROUP = {
     # Topology
     "site-controller": "topology",
@@ -125,6 +138,89 @@ TAG_TO_GROUP = {
     # System / State
     "Spec controller": "system",
     "Task Broker": "system",
+    # ------------------------------------------------------------------
+    # CCC 26.7 tags
+    #
+    # Renames keep their 26.3 group so no existing command moves. Genuinely new
+    # tags are grouped by domain, following the established concept-over-path
+    # precedent (site-label-controller is mapped to `policy`, not `topology`,
+    # because site labels are a policy concept).
+    # ------------------------------------------------------------------
+    # Topology — renames of the 26.3 *-controller tags
+    "Sites": "topology",                        # was site-controller
+    "Distribution Zones (DZs)": "topology",     # was distribution-zone-controller[-v-2]
+    "Virtual Edges": "topology",                # was "Virtual Edge"
+    "VE Groups": "topology",                    # was "Virtual Edge Group"
+    "Virtual Edge Nodes (VENs)": "topology",    # was virtual-edge-node[-overview]-controller
+    "VEN Topology Discovery": "topology",       # was virtual-edgne-node-topology-controller (sic)
+    "Virtual Edge Logging": "topology",         # was virtual-edges-logging-controller
+    "Flow Exporters": "topology",               # was flow-exporter-controller
+    "Cloud Controller": "topology",             # was cloud-controller
+    "Dashboard": "topology",                    # was dashboard-controller
+    "Global Credentials": "topology",           # was global-credentials-controller
+    "Interface Settings": "topology",           # was global-interfaces-settings-controller
+    "Targets": "topology",                      # was targets-controller
+    # Topology — new in 26.7
+    "Virtual Edges (VEs)": "topology",
+    "Topology Settings": "topology",
+    # Policy — new in 26.7
+    "Access Policy (LPA)": "policy",
+    "Policy History": "policy",
+    # Labels drive policy groups; same reasoning as site-label-controller above.
+    "Label Management": "policy",
+    "Label Management - Folders": "policy",
+    "Label Management - Import": "policy",
+    # Vendor CRUD is served by the policy service (/api/policy/v1/vendor) and
+    # vendor records are policy-matching constructs.
+    "Vendor": "policy",
+    # Custom application definitions are consumed by policy rules. Served under
+    # /api/flows/v1/applications, so this is a concept-over-path call — see
+    # output/OPEN-QUESTIONS.md, reversible by moving this one line to "flows".
+    "Custom Applications": "policy",
+    # Devices / Identity Graph — new in 26.7
+    # NOTE: the /api/identity-graph-view/ paths do NOT match the
+    # "/identity-graph/" path-prefix fallback, so without these entries they
+    # fall through to `system`. Mapping them explicitly is what keeps the
+    # read-only device surface in `devices` where a user will look for it.
+    "Devices (Read-Only)": "devices",
+    "Devices Digest": "devices",
+    "Devices - View Sync": "devices",
+    "Offline Device Purge Settings": "devices",
+    # Cloud workload discovery (/api/identity-graph/workloads/**) is one
+    # coherent feature: onboard AWS -> discover -> sync -> manage workloads.
+    # Kept together in `devices` because workloads are identity-graph assets
+    # with the same STATIC-layer CRUD shape as devices, and splitting the
+    # workflow across groups would fragment a single user task.
+    "Workloads": "devices",
+    "Workload Discovery": "devices",
+    "Workload Connector Sync": "devices",
+    "AWS Setup": "devices",
+    # Connectors — new + renamed in 26.7
+    "Connector Configuration": "connectors",    # the new /v1/connectors surface
+    # Renamed from "Connectors Configurations". Without this entry the six
+    # /api/identity-graph/v1/conf/** operations fall through to the
+    # "/identity-graph/" path prefix and land in `devices`, silently moving six
+    # shipped commands out of `elisity connectors`.
+    "Connectors Configurations (Deprecated)": "connectors",
+    "Connector - status": "connectors",
+    # AD Connector Service — new in 26.7
+    "AD Agent V2": "ad",
+    "AD Agent Logs": "ad",
+    "Subscription Refresh": "ad",
+    # Distinct from topology's "Distribution Zones (DZs)": this is the AD
+    # service's own DZ listing (/api/ad-connector-service/v1/distribution-zones).
+    # Kept in `ad` with the service that serves it, which also avoids colliding
+    # with the topology distribution-zone command names.
+    "Distribution Zones": "ad",
+    # Flows — new in 26.7
+    "Device Heatmap": "flows",
+    # System — new in 26.7
+    # Snapshot/schedule endpoints are served under /api/reporting/v1/ but must
+    # NOT map to `reporting`: that group is hand-coded GraphQL and the
+    # HANDCODED_GROUPS collision guard would (correctly) refuse to generate.
+    "Snapshot Schedules": "system",
+    "Snapshots": "system",
+    "Task Broker Config": "system",
 }
 
 GROUP_DESCRIPTIONS = {
@@ -255,6 +351,26 @@ def make_command_name(method: str, op_id: str, path: str, tag: str) -> str:
     return name
 
 
+def schema_base_type(schema: dict) -> str:
+    """The non-null base type of a parameter schema, across OpenAPI 3.0 and 3.1.
+
+    3.0.1 spells an optional string `{"type": "string", "nullable": true}`.
+    3.1.0 spells it `{"type": ["string", "null"]}` — a *list*. CCC moved from
+    3.0.1 (26.3) to 3.1.0 (26.7), and a plain `schema.get("type") == "integer"`
+    comparison silently returns False for the list form, degrading an int
+    parameter to a string. That surfaces as a runtime error for the user rather
+    than a generation error for us, so normalize both spellings here.
+
+    The 26.7 spec happens to use no type arrays, but it declares 3.1.0 and the
+    next revision is free to use them.
+    """
+    t = schema.get("type") if isinstance(schema, dict) else None
+    if isinstance(t, list):
+        non_null = [x for x in t if x != "null"]
+        return non_null[0] if len(non_null) == 1 else ""
+    return t if isinstance(t, str) else ""
+
+
 def extract_params(op: dict) -> tuple:
     """Extract path params, query params from operation."""
     path_params = []
@@ -264,9 +380,10 @@ def extract_params(op: dict) -> tuple:
         param_name = p.get("name", "")
         param_type = "str"
         schema = p.get("schema", {})
-        if schema.get("type") == "integer":
+        base_type = schema_base_type(schema)
+        if base_type == "integer":
             param_type = "int"
-        elif schema.get("type") == "boolean":
+        elif base_type == "boolean":
             param_type = "bool"
         required = p.get("required", False)
         desc = p.get("description", "")
@@ -637,6 +754,61 @@ def build_groups(spec: dict) -> tuple:
     return groups, unmapped
 
 
+def unmapped_tags(spec: dict) -> dict:
+    """Tags present in the spec that TAG_TO_GROUP does not resolve.
+
+    Returns {tag: operation_count}. An operation is only counted when *none* of
+    its tags map, because resolve_group() takes the first tag that hits — an
+    operation carrying one mapped and one unmapped tag is still routed
+    correctly and is not a defect.
+    """
+    counts = defaultdict(int)
+    for path, method, op, tags, op_id in iter_operations(spec):
+        if any(t in TAG_TO_GROUP for t in tags):
+            continue
+        for t in tags:
+            counts[t] += 1
+    return dict(counts)
+
+
+def assert_every_tag_mapped(spec: dict) -> None:
+    """Fail generation if any spec tag has no TAG_TO_GROUP entry.
+
+    The path-prefix fallback in resolve_group() will happily absorb an unmapped
+    tag into a plausible-looking group, so an unmapped tag is not a loud error —
+    it is a silent, wide misrouting. CCC 26.7 renamed 16 tags; six
+    `Connectors Configurations` operations moved from `connectors` to `devices`
+    that way, and the command count stayed plausible throughout. Refusing to
+    generate is the only thing that makes this class of drift visible before it
+    ships.
+    """
+    unmapped = unmapped_tags(spec)
+    if not unmapped:
+        return
+    lines = [
+        f"ERROR: {len(unmapped)} spec tag(s) have no TAG_TO_GROUP mapping, "
+        f"covering {sum(unmapped.values())} operation(s).",
+        "",
+        "Each would be silently routed by the path-prefix fallback, which is how",
+        "commands quietly change group across a spec bump. Add each tag to",
+        "TAG_TO_GROUP in generate_commands.py, then regenerate:",
+        "",
+    ]
+    for tag, count in sorted(unmapped.items(), key=lambda kv: (-kv[1], kv[0])):
+        would_be, _ = resolve_group([tag], _sample_path_for_tag(spec, tag))
+        lines.append(f'    "{tag}": "{would_be}",   # {count} operation(s) — '
+                     f"fallback would pick {would_be}")
+    raise SystemExit("\n".join(lines))
+
+
+def _sample_path_for_tag(spec: dict, tag: str) -> str:
+    """First path carrying `tag`, so the guard can show the fallback's choice."""
+    for path, method, op, tags, op_id in iter_operations(spec):
+        if tag in tags:
+            return path
+    return ""
+
+
 def render_init_module(generated_groups) -> str:
     """Render commands/__init__.py, keeping hand-coded groups registered."""
     all_groups = sorted(set(generated_groups) | set(HANDCODED_GROUPS))
@@ -681,6 +853,12 @@ def main(argv=None):
     print(f"Output: {output_dir}")
 
     spec = load_spec(spec_path)
+
+    # Refuse to generate from a spec with unmapped tags — see the guard's
+    # docstring. Checked before build_groups() so the failure names the tags
+    # rather than emitting quietly-misrouted modules.
+    assert_every_tag_mapped(spec)
+
     groups, unmapped = build_groups(spec)
 
     # A spec tag must never be allowed to overwrite a hand-coded module.
