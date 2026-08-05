@@ -183,8 +183,9 @@ Use `diagnose-low-score` to tell them apart before acting.
 # Tenant-wide headline number (the CCC dashboard "Zero Trust score" tile)
 elisity reporting get-aggregate-enforcement-score
 
-# Per-policy-set enforcement score
-elisity reporting get-policy-set-enforcement-score <POLICY_SET_ID>
+# Per-site enforcement score (CCC 26.7 removed the per-policy-set field
+# policyMetrics.policySetEnforcementScore, so this is the narrowest score left)
+elisity reporting get-site-kpis --site <SITE>
 
 # Per-PG device + policy coverage breakdown
 elisity reporting get-zero-trust-metrics

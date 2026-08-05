@@ -53,7 +53,7 @@ or read [glossary.md](glossary.md).
 | "list ACLs" / "list firewall rules" | Security Profile | `elisity policy get-all-security-profiles-as-nd-json` |
 | "show the policy matrix" | Policy Matrix | `elisity policy get-matrix` |
 | "Zero Trust score" / "posture score" / "compliance score" | Policy Enforcement Score | `elisity reporting get-aggregate-enforcement-score` |
-| "Zero Trust score for policy set X" | Policy Enforcement Score | `elisity reporting get-policy-set-enforcement-score <POLICY_SET_ID>` |
+| "Zero Trust score for site X" | Policy Enforcement Score | `elisity reporting get-site-kpis --site <SITE>` (CCC 26.7 removed the per-policy-set score) |
 | "per-PG Zero Trust breakdown" | Policy Enforcement Score | `elisity reporting get-zero-trust-metrics` |
 | "why is the score low" / "what should I fix to improve the score" | Policy Enforcement Score | `elisity -f table reporting diagnose-low-score` |
 | "list our VENs" / "list switches" | Virtual Edge Node | `elisity topology get-virtual-edge-nodes` |
@@ -343,18 +343,18 @@ Two end-to-end agent workflows that exercise the patterns above.
 elisity glossary explain "Zero Trust score"
 #   → Term: Policy Enforcement Score
 #   → Recipe: elisity reporting get-aggregate-enforcement-score
-#   → Recipe: elisity reporting get-policy-set-enforcement-score <id>
+#   → Recipe: elisity reporting get-site-kpis --site <SITE>
 
 # 2. Headline number
 elisity reporting get-aggregate-enforcement-score
 #   → [{"value": 73.4, ...}]
 
-# 3. Per-policy-set breakdown
-for id in $(elisity policy get-all-as-nd-json -q '[].id' -f csv | tail -n +2); do
-  score=$(elisity reporting get-policy-set-enforcement-score "$id" -q '[0].value' 2>/dev/null)
-  echo "$score $id"
-done | sort -n | head -5
-#   → bottom 5 policy sets, ascending. The drag.
+# 3. Per-site breakdown. CCC 26.7 removed the per-policy-set GraphQL field
+#    (policyMetrics.policySetEnforcementScore), so per-site is the narrowest
+#    enforcement score available; go to policy-group granularity in step 4.
+elisity -f table reporting get-site-kpis \
+  -q '[].{site: siteName, score: policyEnforcementScore}'
+#   → lowest scores are the drag.
 
 # 4. WHY they drag — per-group cause + fix. Don't infer "simulation" from a low
 #    score; this joins the score with each group's real policy status.

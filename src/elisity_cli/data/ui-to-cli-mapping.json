@@ -211,9 +211,9 @@
         "notes": "Returns the single FloatMetricValue the CCC dashboard tile shows. Default snapshot is the previous full hour UTC."
       },
       {
-        "intent": "Get the Policy Enforcement Score for a single policy set",
-        "command": "elisity reporting get-policy-set-enforcement-score <POLICY_SET_ID>",
-        "notes": "Use `elisity policy get-all-as-nd-json -q '[].{id: id, name: name}'` to list policy set ids."
+        "intent": "Get the enforcement score for one site",
+        "command": "elisity reporting get-site-kpis --site <SITE>",
+        "notes": "CCC 26.7 removed the per-policy-set GraphQL field (policyMetrics.policySetEnforcementScore), so `reporting get-policy-set-enforcement-score` no longer exists. Per-site is the narrowest enforcement score 26.7 still exposes; for per-policy-group coverage use `reporting get-zero-trust-metrics`."
       },
       {
         "intent": "Per-policy-group device + policy coverage breakdown",
@@ -228,10 +228,10 @@
     ],
     "related_commands": [
       "elisity reporting get-aggregate-enforcement-score",
-      "elisity reporting get-policy-set-enforcement-score",
       "elisity reporting get-zero-trust-metrics",
       "elisity policy get-enforcement-score",
-      "elisity policy get-enforcement-score-weight-settings"
+      "elisity policy get-enforcement-score-weight-settings",
+      "elisity reporting get-site-kpis"
     ]
   },
   {

@@ -29,12 +29,20 @@ GRAPHQL_PATH = "/api/reporting/v1/data"
 # variable-validation step accepts it (@include directives reference the
 # `includeMac` and `includeL4Detail` variables — dropping them produces a
 # `ValidationError: Unused variable` response).
-_ZERO_TRUST_QUERY = """query GetRiskAttributionScores($snapshotDateTimes: [DateTime!]!, $site: [Site!], $includeMac: Boolean!, $includeL4Detail: Boolean = false, $macAddress: [String!], $filters: ZeroTrustFilters) {
+#
+# CCC 26.7: the per-device selectors (macAddress, deviceId, ipAddress, …) are no
+# longer top-level arguments on `zeroTrustMetrics` — they live in the
+# `ZeroTrustFilters` input object passed as `filters`. Passing `macAddress` at
+# the top level is rejected at validation time:
+#   Validation error (UnknownArgument@[policyMetrics/zeroTrustMetrics])
+# so the argument was moved into `filters` rather than dropped. `$macAddress`
+# went with it — an orphaned variable declaration would itself be a
+# `ValidationError: Unused variable`.
+_ZERO_TRUST_QUERY = """query GetRiskAttributionScores($snapshotDateTimes: [DateTime!]!, $site: [Site!], $includeMac: Boolean!, $includeL4Detail: Boolean = false, $filters: ZeroTrustFilters) {
   policyMetrics {
     zeroTrustMetrics(
       dateTime: $snapshotDateTimes
       site: $site
-      macAddress: $macAddress
       filters: $filters
     ) {
       dateTime
@@ -122,6 +130,36 @@ def _default_snapshot() -> str:
     return (now - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 
+# Keys of the CCC 26.7 `ZeroTrustFilters` input object. Every one of these was a
+# top-level argument on `zeroTrustMetrics` before 26.7. Kept as an explicit tuple
+# so a typo'd key is caught here rather than by the server.
+_ZERO_TRUST_FILTER_KEYS = (
+    "ipAddress",
+    "macAddress",
+    "deviceId",
+    "siteId",
+    "policySetId",
+    "policyGroupId",
+    "distributionZoneId",
+)
+
+
+def _zero_trust_filters(**selectors) -> Optional[dict]:
+    """Build the ``ZeroTrustFilters`` value from the selectors a command exposes.
+
+    Returns ``None`` when nothing was selected, so the variable is omitted
+    entirely rather than sent as an empty object.
+    """
+    unknown = sorted(set(selectors) - set(_ZERO_TRUST_FILTER_KEYS))
+    if unknown:
+        raise ValueError(
+            f"not ZeroTrustFilters keys: {unknown} "
+            f"(valid: {list(_ZERO_TRUST_FILTER_KEYS)})"
+        )
+    filters = {key: list(value) for key, value in selectors.items() if value}
+    return filters or None
+
+
 def _check_errors(result) -> None:
     """Raise on GraphQL-level errors."""
     if isinstance(result, dict) and result.get("errors"):
@@ -187,6 +225,15 @@ def _lookup_sites(ctx, site_names: List[str]) -> List[dict]:
     "Alternative: omit and post-filter with `-q \"[?siteName=='Boston']\"`.",
 )
 @click.option(
+    "--mac-address",
+    "mac_addresses",
+    multiple=True,
+    default=None,
+    help="Filter to one or more device MAC addresses (server-side filter, "
+    "CCC 26.7 `ZeroTrustFilters.macAddress`). Repeatable. Implies --include-mac "
+    "so the filtered rows carry the MAC they matched on.",
+)
+@click.option(
     "--include-mac",
     is_flag=True,
     default=False,
@@ -203,6 +250,7 @@ def cmd_zero_trust(
     ctx,
     snapshots,
     sites,
+    mac_addresses,
     include_mac,
     include_l4_detail,
 ):
@@ -228,6 +276,7 @@ def cmd_zero_trust(
       elisity reporting get-zero-trust-metrics --snapshot 2026-05-22T11:00:00.000Z
       elisity reporting get-zero-trust-metrics --site Boston --site CORK
       elisity reporting get-zero-trust-metrics --include-l4-detail
+      elisity reporting get-zero-trust-metrics --mac-address 00:11:22:33:44:55
 
       # Per-policy-group coverage scores
       elisity -q '[].{site: siteName, pg: policyGroupName, devices: deviceCount, devCov: avgDeviceCoverage, polCov: avgPolicyCoverage}' \\
@@ -245,11 +294,15 @@ def cmd_zero_trust(
     """
     variables = {
         "snapshotDateTimes": list(snapshots) if snapshots else [_default_snapshot()],
-        "includeMac": include_mac,
+        # A MAC filter with no MAC in the rows is useless output — imply the flag.
+        "includeMac": include_mac or bool(mac_addresses),
         "includeL4Detail": include_l4_detail,
     }
     if sites:
         variables["site"] = _lookup_sites(ctx, list(sites))
+    filters = _zero_trust_filters(macAddress=mac_addresses)
+    if filters:
+        variables["filters"] = filters
 
     result = _post_graphql(ctx, "GetRiskAttributionScores", variables, _ZERO_TRUST_QUERY)
     _check_errors(result)
@@ -469,17 +522,12 @@ _AGGREGATE_SCORE_QUERY = """query AggregateEnforcementScore($dt: [DateTime!]!, $
   }
 }"""
 
-_POLICY_SET_SCORE_QUERY = """query PolicySetEnforcementScore($id: UUID!, $dt: [DateTime!]!, $site: [Site!]) {
-  policyMetrics {
-    policySetEnforcementScore(policySetId: $id, dateTime: $dt, site: $site) {
-      ... on FloatMetricValue {
-        value
-        dateTime
-        __typename
-      }
-    }
-  }
-}"""
+# NOTE (CCC 26.7): `policyMetrics.policySetEnforcementScore` was REMOVED from the
+# schema — the query that backed `reporting get-policy-set-enforcement-score`
+# now fails with FieldUndefined. The command was removed rather than rewritten:
+# no 26.7 field answers "enforcement score for this one policy set", and
+# `coverage(policySetId: …)` is a coverage measure, not that score. See README
+# "What changed in CCC 26.7".
 
 _DEVICE_COUNT_QUERY = """query DeviceCount($dt: DateTimeSelectionInput!, $online: Boolean, $site: [Site!]) {
   identityGraphMetrics {
@@ -546,54 +594,6 @@ def cmd_aggregate_score(ctx, snapshots, sites):
     _check_errors(result)
     data = (
         result.get("data", {}).get("policyMetrics", {}).get("aggregatePolicyEnforcementScore")
-        or []
-    )
-    render(data, ctx.format, ctx.query)
-
-
-@group.command("get-policy-set-enforcement-score")
-@click.argument("policy_set_id")
-@click.option(
-    "--snapshot",
-    "snapshots",
-    multiple=True,
-    default=None,
-    help="ISO-8601 snapshot time (top-of-hour UTC). Repeatable. Default: previous full hour.",
-)
-@click.option(
-    "--site",
-    "sites",
-    multiple=True,
-    default=None,
-    help="Filter to one or more site names. Repeatable.",
-)
-@pass_context
-def cmd_policy_set_score(ctx, policy_set_id, snapshots, sites):
-    """Per-policy-set enforcement score (GraphQL — works where the REST
-    `policy get-enforcement-score` returns 404).
-
-    Examples:
-      # Get every policy set ID
-      elisity policy get-all-as-nd-json -q '[].{id: id, name: name}'
-
-      # Pull score for one
-      elisity reporting get-policy-set-enforcement-score <POLICY_SET_ID>
-
-      # Fan out across all policy sets
-      for id in $(elisity policy get-all-as-nd-json -q '[].id' -f csv | tail -n +2); do
-        echo "=== $id ==="
-        elisity reporting get-policy-set-enforcement-score "$id"
-      done
-    """
-    snaps = list(snapshots) if snapshots else [_default_snapshot()]
-    variables = {"id": policy_set_id, "dt": snaps}
-    if sites:
-        variables["site"] = _lookup_sites(ctx, list(sites))
-
-    result = _post_graphql(ctx, "PolicySetEnforcementScore", variables, _POLICY_SET_SCORE_QUERY)
-    _check_errors(result)
-    data = (
-        result.get("data", {}).get("policyMetrics", {}).get("policySetEnforcementScore")
         or []
     )
     render(data, ctx.format, ctx.query)
@@ -709,14 +709,12 @@ _POLICY_COUNT_QUERY = """query PolicyCount($dt: DateTimeSelectionInput!, $monito
   }
 }"""
 
-_POLICY_COUNT_NEEDED_QUERY = """query PolicyCountNeeded($dt: [DateTime!]!, $site: [Site!]) {
-  policyMetrics {
-    countNeeded(dateTime: $dt, site: $site) {
-      dateTime
-      value
-    }
-  }
-}"""
+# NOTE (CCC 26.7): `policyMetrics.countNeeded` was REMOVED from the schema —
+# the query that backed `reporting get-policy-count-needed` now fails with
+# FieldUndefined. The command was removed rather than rewritten onto
+# `coverage`: coverage answers "how covered are the groups I have", not "how
+# many more policies are needed", and a plausible-but-wrong number is worse
+# than an absent command. See README "What changed in CCC 26.7".
 
 _POLICY_GROUPS_COUNT_QUERY = """query PolicyGroupsCount($dt: [DateTime!]!, $local: Boolean, $site: [Site!]) {
   policyMetrics {
@@ -874,29 +872,6 @@ def cmd_policy_count(ctx, snapshots, monitor_mode, sites):
     result = _post_graphql(ctx, "PolicyCount", variables, _POLICY_COUNT_QUERY)
     _check_errors(result)
     render(result.get("data", {}).get("policyMetrics", {}).get("count") or [],
-           ctx.format, ctx.query)
-
-
-@group.command("get-policy-count-needed")
-@click.option("--snapshot", "snapshots", multiple=True, default=None,
-              help="ISO-8601 snapshot time. Repeatable. Default: previous full hour.")
-@click.option("--site", "sites", multiple=True, default=None,
-              help="Filter to one or more site names. Repeatable.")
-@pass_context
-def cmd_policy_count_needed(ctx, snapshots, sites):
-    """Policies needed for full policy-group coverage.
-
-    Surfaces the count of *additional* policies CCC thinks would be needed
-    to fully cover the policy groups at this snapshot.
-    """
-    snaps = list(snapshots) if snapshots else [_default_snapshot()]
-    variables = {"dt": snaps}
-    sl = _maybe_sites(ctx, sites)
-    if sl is not None:
-        variables["site"] = sl
-    result = _post_graphql(ctx, "PolicyCountNeeded", variables, _POLICY_COUNT_NEEDED_QUERY)
-    _check_errors(result)
-    render(result.get("data", {}).get("policyMetrics", {}).get("countNeeded") or [],
            ctx.format, ctx.query)
 
 

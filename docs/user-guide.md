@@ -1544,9 +1544,9 @@ elisity -f table reporting get-site-kpis
 # Tenant-wide device counts, broken out by online status
 elisity reporting get-device-count
 
-# Per-policy-set enforcement score (real GraphQL value — the REST
-# `policy get-enforcement-score` 404s on most tenants)
-elisity reporting get-policy-set-enforcement-score <POLICY_SET_ID>
+# NOTE: CCC 26.7 removed policyMetrics.policySetEnforcementScore, so there is
+# no per-policy-set score command any more. Per-site (above) is the narrowest
+# enforcement score; per-policy-group coverage is get-zero-trust-metrics.
 
 # The original per-policy-group ZT row data (deviceCoverage / policyCoverage,
 # threat-vector metrics, port exposure)
