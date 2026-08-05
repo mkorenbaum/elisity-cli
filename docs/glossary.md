@@ -166,16 +166,17 @@ elisity policy get-policy-group-devices <UNASSIGNED_PG_ID>
 
 **Context:** 0-100 metric for policy coverage quality. Also referred to as Policy
 Deployment Score. Active (enforced) policies count fully; Simulation
-(MONITOR_ONLY) policies contribute only a fraction of that weight (the exact
-ratio is tenant-configurable — read it with `get-enforcement-score-weight-settings`,
-don't assume a fixed number).
+(MONITOR_ONLY) policies contribute only a fraction of that weight (the ratio is
+tenant-configurable and CCC 26.7 removed the endpoint that read it — see the
+note below — so don't assume a fixed number).
 
 **A low or zero score has more than one cause — don't assume "simulation".** A
 group scoring 0 may have *no policy at all* (nothing to enforce), only
 *simulation* policies (activate them), or *active* policies that don't cover its
 real traffic (reclassify devices / add rules). These need opposite fixes, so
 recommending "activate the simulation policies" for a no-policy group is wrong.
-Use `diagnose-low-score` to tell them apart before acting.
+Tell them apart before acting by reading the `monitorMode` of the policies that
+reference the group (recipe below).
 
 **CLI recipes:**
 
@@ -190,12 +191,24 @@ elisity reporting get-site-kpis --site <SITE>
 # Per-PG device + policy coverage breakdown
 elisity reporting get-zero-trust-metrics
 
-# WHY a group scores low: no-policy vs simulation vs uncovered, with a fix per row
-elisity -f table reporting diagnose-low-score
-
-# Inspect the score-weighting config (Active vs Simulation weights)
-elisity policy get-enforcement-score-weight-settings
+# WHY a group scores low: no-policy vs simulation vs uncovered.
+# Step 1 gives you the policyGroupId; step 2 gives you the cause.
+elisity -f table \
+  -q '[].{pg: policyGroupName, pgId: policyGroupId, devCov: policyDeploymentMetrics.deviceCoverage}' \
+  reporting get-zero-trust-metrics
+elisity -f table \
+  -q '[?srcId==`PG_ID` || dstId==`PG_ID`].{name: name, mode: monitorMode, disabled: disabled}' \
+  policy get-all-policies-as-nd-json
+#   no rows = no policy | all MONITOR_ONLY = simulation | any
+#   MONITOR_AND_ENFORCE = active but uncovered
 ```
+
+> **Removed in CCC 26.7.** `policy get-enforcement-score-weight-settings` and
+> `policy get-enforcement-score` are gone from the spec, and
+> `reporting diagnose-low-score` — which did the two-step above in one call —
+> was removed with them because CCC 26.7 deleted the two coverage fields it
+> filtered on. The score-weight ratio is no longer readable from the CLI; read
+> it in the CCC UI.
 
 ---
 

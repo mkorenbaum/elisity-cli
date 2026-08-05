@@ -1548,7 +1548,7 @@ elisity reporting get-device-count
 # no per-policy-set score command any more. Per-site (above) is the narrowest
 # enforcement score; per-policy-group coverage is get-zero-trust-metrics.
 
-# The original per-policy-group ZT row data (deviceCoverage / policyCoverage,
+# The per-policy-group ZT row data (policyDeploymentMetrics coverage,
 # threat-vector metrics, port exposure)
 elisity reporting get-zero-trust-metrics
 
@@ -1605,11 +1605,24 @@ elisity reporting get-zero-trust-metrics --include-mac
 | `siteName` / `policyGroupName` / `policySetName` | Where this row lives |
 | `deviceCount` | Devices counted in this row |
 | `totalFlows` / `restrictedFlows` | Flow totals; `restrictedFlows / totalFlows` ≈ blocked-ratio |
-| `avgDeviceCoverage` | **Zero Trust device-coverage score (0–100)** — UI's Zero Trust Device Score |
-| `avgPolicyCoverage` | **Zero Trust policy-coverage score (0–100)** — UI's Zero Trust Policy Score |
+| `policyDeploymentMetrics.deviceCoverage` | Device-coverage measure. **Scale unconfirmed** — see the note below |
+| `policyDeploymentMetrics.policyDeviceCoverage` | Policy-device-coverage measure. **Scale unconfirmed** |
 | `l4Metrics.avgAllowedPorts` | Average open-port count per device |
 | `threatVectorMetrics.portExposure[]` | Per-port exposure scores (the malware-lateral-movement page) |
 | `threatVectorMetrics.threatVectors[]` | MITRE ATT&CK technique codes + scores |
+
+> **Changed in CCC 26.7 — check any script that read these rows.** The flat
+> `avgDeviceCoverage` and `avgPolicyCoverage` fields were deleted from
+> `ZeroTrustMetrics`; selecting either one now fails with
+> `FieldUndefined`. The coverage numbers moved into the nested
+> `policyDeploymentMetrics` object. That is a reshape, not a rename: nothing in
+> the 26.7 schema states that `deviceCoverage` is the same measurement on the
+> same 0–100 scale as `avgDeviceCoverage` was, so the CLI passes the object
+> through untouched instead of renaming it back. **Re-check any threshold or
+> percentage arithmetic against real output before trusting it** — a 0.0–1.0
+> fraction fed to a rule written for 0–100 silently flags everything.
+> `reporting diagnose-low-score`, which filtered on the two deleted fields, was
+> removed for that reason rather than re-pointed.
 
 **Computing a tenant-wide Zero Trust score** (device-weighted average,
 null-safe — JMESPath has no general arithmetic so do this in jq):
@@ -1619,9 +1632,9 @@ elisity reporting get-zero-trust-metrics | jq '
   {
     snapshot: .[0].dateTime,
     total_devices: (map(.deviceCount) | add),
-    weighted_device_coverage: ((map((.avgDeviceCoverage // 0) * .deviceCount) | add)
+    weighted_device_coverage: ((map((.policyDeploymentMetrics.deviceCoverage // 0) * .deviceCount) | add)
                               / (map(.deviceCount) | add)),
-    weighted_policy_coverage: ((map((.avgPolicyCoverage // 0) * .deviceCount) | add)
+    weighted_policy_coverage: ((map((.policyDeploymentMetrics.policyDeviceCoverage // 0) * .deviceCount) | add)
                               / (map(.deviceCount) | add))
   }'
 ```
@@ -1630,8 +1643,9 @@ elisity reporting get-zero-trust-metrics | jq '
 top-level flags — place them BEFORE the group name):
 
 ```bash
-elisity -q '[].{site: siteName, pg: policyGroupName,
-              devices: deviceCount, devCov: avgDeviceCoverage, polCov: avgPolicyCoverage}' \
+elisity -q '[].{site: siteName, pg: policyGroupName, devices: deviceCount,
+              devCov: policyDeploymentMetrics.deviceCoverage,
+              polDevCov: policyDeploymentMetrics.policyDeviceCoverage}' \
   -f table reporting get-zero-trust-metrics
 ```
 

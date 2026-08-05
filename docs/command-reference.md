@@ -1,14 +1,14 @@
 # Elisity CLI -- Command Reference
 
 > The 583 REST commands below are auto-generated from the Elisity CCC OpenAPI
-> specification. The `reporting` group (18 commands) is hand-coded against the
+> specification. The `reporting` group (17 commands) is hand-coded against the
 > CCC GraphQL endpoint at `/api/reporting/v1/data` and is NOT listed in this
 > reference — see [user-guide.md](user-guide.md) section 9 for the full
 > reporting catalog.
 >
-> **608 commands** total: 583 auto-generated REST + 18 hand-coded GraphQL
+> **607 commands** total: 583 auto-generated REST + 17 hand-coded GraphQL
 > reporting + 7 CLI-native (auth + config). 11 groups total. (Excludes the 3
-> CLI-native `glossary` commands; see README for the full 611-command count.)
+> CLI-native `glossary` commands; see README for the full 610-command count.)
 >
 > This file is generated — run `python3 tools/gen_command_reference.py` after
 > regenerating commands. Do not edit it by hand.

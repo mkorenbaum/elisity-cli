@@ -23,12 +23,26 @@ These tests validate every query literal in `commands/reporting.py` against a
 staged introspection of the live 26.7 schema, so the next schema drift fails here
 instead of shipping.
 
+The first round of this guard checked ARGUMENTS and stopped at the first return
+type it had no staging for. CCC 26.7's second breakage went straight through it:
+`zeroTrustMetrics`'s arguments were right, so the query passed here and the
+server rejected the fields it SELECTED --
+
+    Validation error (FieldUndefined@[policyMetrics/zeroTrustMetrics/avgDeviceCoverage])
+    Validation error (FieldUndefined@[policyMetrics/zeroTrustMetrics/avgPolicyCoverage])
+
+-- because `ZeroTrustMetrics` was never staged, so the whole selection set was
+filed as "unverified" and read as a pass. The guard now validates every selected
+field at every depth, resolves named and inline fragments against their type
+condition, and counts FIELD PATHS rather than queries so the denominator is the
+thing that matters.
+
 Scope, stated honestly: this is a STATIC check. It proves the queries are
 well-formed against the staged schema. It does not execute anything against a
-live tenant, and it can only check types we have staged introspection for —
-`PolicyMetrics` today. `TestCoverageIsHonest` asserts the unverified surface is
-exactly the known list, so widening (or silently losing) coverage is itself a
-test failure.
+live tenant, and it can only check types we have staged introspection for.
+`TestCoverageIsHonest` asserts the unverified surface is exactly the known list
+and pins the field-path denominator, so widening (or silently losing) coverage
+is itself a test failure.
 """
 
 import sys
@@ -42,10 +56,12 @@ sys.path.insert(0, str(REPO_ROOT))
 from tools.gql_schema_check import (  # noqa: E402
     DEFAULT_SCHEMA,
     KNOWN_UNVERIFIED_ROOTS,
+    REQUIRED_STAGED_TYPES,
     ROOT_FIELD_TYPES,
     check_module,
     extract_queries,
     load_schema,
+    missing_required_types,
     validate_document,
 )
 
@@ -78,6 +94,34 @@ _QUERY_263_POLICY_SET_SCORE = """query PolicySetEnforcementScore($id: UUID!, $dt
       }
     }
   }
+}"""
+
+# The SELECTION SET that 26.7 rejected — arguments correct, fields deleted.
+# This is the shape the first round of this guard passed.
+_QUERY_263_FLAT_COVERAGE = """query GetRiskAttributionScores($dt: [DateTime!]!) {
+  policyMetrics {
+    zeroTrustMetrics(dateTime: $dt) {
+      deviceCount
+      avgDeviceCoverage
+      avgPolicyCoverage
+    }
+  }
+}"""
+
+# Drift one level deeper still: inside a nested metric object, and inside a
+# named fragment. Both are places the old checker could not see at all.
+_QUERY_NESTED_DRIFT = """query Q($dt: [DateTime!]!) {
+  policyMetrics {
+    zeroTrustMetrics(dateTime: $dt) {
+      l4Metrics { avgAllowedPorts avgNonsense }
+      threatVectorMetrics { ...TV }
+    }
+  }
+}
+
+fragment TV on ThreatVectorMetrics {
+  portExposure { port }
+  notAFieldOnThreatVectorMetrics
 }"""
 
 
@@ -146,11 +190,21 @@ class TestQueriesMatchStagedSchema:
         }
 
     def test_removed_267_fields_are_gone_from_the_module(self):
-        """Fields CCC 26.7 deleted must not be referenced by any query."""
-        source = Path(reporting.__file__).read_text()
-        for field in ("countNeeded(", "policySetEnforcementScore("):
-            assert field not in source, (
-                f"{field} does not exist on PolicyMetrics in CCC 26.7 — "
+        """Fields CCC 26.7 deleted must not be selected by any query.
+
+        Asserted over the query literals rather than the whole file: the module
+        names these fields in comments explaining why they went, and a source
+        scan would forbid documenting the change.
+        """
+        selected = "\n".join(extract_queries().values())
+        for field in (
+            "countNeeded(",
+            "policySetEnforcementScore(",
+            "avgDeviceCoverage",
+            "avgPolicyCoverage",
+        ):
+            assert field not in selected, (
+                f"{field} does not exist in the CCC 26.7 schema — "
                 "any query selecting it fails with FieldUndefined"
             )
 
@@ -184,6 +238,59 @@ class TestGuardIsNonVacuous:
         assert [error["kind"] for error in result["errors"]] == ["FieldUndefined"]
         assert result["errors"][0]["path"] == "policyMetrics/policySetEnforcementScore"
 
+    def test_flat_coverage_fields_are_rejected(self, schema):
+        """The exact second 26.7 breakage: right arguments, deleted fields.
+
+        The first round of this guard reported this query as UNVERIFIED and the
+        suite read that as a pass, so it shipped and failed on the live tenant.
+        """
+        result = validate_document(_QUERY_263_FLAT_COVERAGE, schema)
+        assert [e["kind"] for e in result["errors"]] == [
+            "FieldUndefined", "FieldUndefined",
+        ]
+        assert [e["path"] for e in result["errors"]] == [
+            "policyMetrics/zeroTrustMetrics/avgDeviceCoverage",
+            "policyMetrics/zeroTrustMetrics/avgPolicyCoverage",
+        ]
+        # Same wording the live endpoint used, naming the same type.
+        assert "does not exist on ZeroTrustMetrics" in result["errors"][0]["message"]
+
+    def test_drift_inside_a_nested_object_and_a_fragment_is_rejected(self, schema):
+        """Depth is not a hiding place: nested metric objects and named
+        fragments are validated against their own types."""
+        result = validate_document(_QUERY_NESTED_DRIFT, schema)
+        assert {e["path"] for e in result["errors"]} == {
+            "policyMetrics/zeroTrustMetrics/l4Metrics/avgNonsense",
+            "policyMetrics/zeroTrustMetrics/threatVectorMetrics/"
+            "notAFieldOnThreatVectorMetrics",
+        }
+
+    def test_undefined_fragment_spread_is_rejected(self, schema):
+        result = validate_document(
+            "query Q { policyMetrics { zeroTrustMetrics { ...Missing } } }", schema
+        )
+        assert [e["kind"] for e in result["errors"]] == ["UnknownFragment"]
+
+    def test_unused_fragment_definition_is_rejected(self, schema):
+        """The server rejects a fragment that is defined and never spread."""
+        result = validate_document(
+            "query Q { policyMetrics { __typename } }\n"
+            "fragment Dead on ThreatVectorMetrics { portExposure { port } }",
+            schema,
+        )
+        assert [e["kind"] for e in result["errors"]] == ["UnusedFragment"]
+
+    def test_deleting_required_staging_is_an_error(self, schema):
+        """Coverage cannot shrink quietly.
+
+        Dropping a staged type used to turn real checks into 'unverified' lines
+        while the report kept printing a percentage over a smaller denominator.
+        That is how the reshape shipped, so it is now an error.
+        """
+        assert missing_required_types(schema) == []
+        shrunk = {k: v for k, v in schema.items() if k != "ZeroTrustMetrics"}
+        assert missing_required_types(shrunk) == ["ZeroTrustMetrics"]
+
     def test_typo_in_a_root_is_rejected(self, schema):
         """An unrecognised root must be an error, not waved through as unverified."""
         result = validate_document("query Q { polcyMetrics { count } }", schema)
@@ -206,9 +313,22 @@ class TestCoverageIsHonest:
         assert set(report["queries"]) == set(extract_queries())
         assert report["totals"]["queries"] >= 15
 
-    def test_staged_schema_is_the_267_policymetrics_field_set(self, schema):
-        """Pin the staged introspection to what Obiwan captured from live 26.7."""
-        assert set(schema) == {"PolicyMetrics"}
+    def test_staged_schema_is_the_267_reporting_type_graph(self, schema):
+        """Pin the staged introspection to what was captured from live 26.7."""
+        assert set(schema) == {
+            "PolicyMetrics",
+            "ZeroTrustMetrics",
+            "PolicyDeploymentMetrics",
+            "MissingPolicyMetrics",
+            "MissingPolicySetMetrics",
+            "SecurityProfileMetrics",
+            "IcMetrics",
+            "GtvMetrics",
+            "L4Metrics",
+            "ThreatVectorMetrics",
+            "PolicyCoverage",
+        }
+        assert REQUIRED_STAGED_TYPES <= set(schema)
         assert set(schema["PolicyMetrics"]) == {
             "count",
             "coverage",
@@ -221,6 +341,32 @@ class TestCoverageIsHonest:
             "site",
             "filters",
         }
+        # The reshape, pinned: the flat fields are absent and the nested object
+        # that replaced them carries the two the CLI selects.
+        ztm = schema["ZeroTrustMetrics"]
+        assert "avgDeviceCoverage" not in ztm
+        assert "avgPolicyCoverage" not in ztm
+        assert ztm["policyDeploymentMetrics"]["type"] == "PolicyDeploymentMetrics"
+        assert {"deviceCoverage", "policyDeviceCoverage"} <= set(
+            schema["PolicyDeploymentMetrics"]
+        )
+
+    def test_staged_policymetrics_matches_the_verbatim_capture(self):
+        """The derived staging may add return-type names, never fields or args.
+
+        `ccc-26.7-policymetrics-introspection.json` is the verbatim live capture.
+        The widened file is derived from it plus the introspection handoff; if
+        the two ever disagree about which fields or arguments exist, the derived
+        one is the thing that drifted.
+        """
+        verbatim = load_schema(
+            REPO_ROOT / "tests" / "data"
+            / "ccc-26.7-policymetrics-introspection.json"
+        )["PolicyMetrics"]
+        derived = load_schema(DEFAULT_SCHEMA)["PolicyMetrics"]
+        assert set(derived) == set(verbatim)
+        for name, definition in verbatim.items():
+            assert derived[name]["args"] == definition["args"], name
 
     def test_unverified_surface_is_the_known_list(self, report):
         """Queries we CANNOT check are named explicitly.
@@ -255,11 +401,38 @@ class TestCoverageIsHonest:
             "trafficVectorsMetrics",
         }
 
+    def test_field_path_denominator_is_stated(self, report):
+        """Coverage is reported over FIELD PATHS, not queries.
+
+        "11 of 15 queries unverified" was the number the first round printed,
+        and it hid the thing that broke: the one query it called verified had
+        its entire selection set unchecked. The denominator that matters is how
+        many of the fields we actually send were checked against a staged type.
+        """
+        totals = report["totals"]
+        assert totals["fieldPaths"] == (
+            totals["fieldPathsVerified"] + totals["fieldPathsUnverified"]
+        )
+        # The Zero Trust query is the one that broke; it is now checked in full
+        # apart from the two threat-vector value types nobody has introspected.
+        zt = report["queries"]["_ZERO_TRUST_QUERY"]["fieldPaths"]
+        assert zt["verified"] >= 33, zt
+        assert zt["unverified"] == 8, zt
+        # Every remaining gap is named, not implied.
+        for name, result in report["queries"].items():
+            for gap in result["unverified"]:
+                assert gap["reason"], name
+                assert gap["fields"] >= 1, name
+
+    def test_required_staging_is_present(self, report):
+        assert report["missingRequiredTypes"] == []
+
     def test_reporting_group_size(self):
-        """CCC 26.7 removed two commands; the count is asserted, not implied."""
-        assert len(reporting.group.commands) == 18
+        """CCC 26.7 removed three commands; the count is asserted, not implied."""
+        assert len(reporting.group.commands) == 17
         assert "get-policy-count-needed" not in reporting.group.commands
         assert "get-policy-set-enforcement-score" not in reporting.group.commands
+        assert "diagnose-low-score" not in reporting.group.commands
 
 
 # --------------------------------------------------------------------------
@@ -273,6 +446,23 @@ class TestParser:
         result = validate_document(reporting._ZERO_TRUST_QUERY, schema)
         assert result["verifiedRoots"] == ["policyMetrics"]
         assert result["errors"] == []
+        # Proof the fragment body was actually walked rather than skipped: the
+        # threat-vector leaves show up as named gaps under their own type.
+        gaps = {gap["path"] for gap in result["unverified"]}
+        assert any(
+            path.startswith(
+                "policyMetrics/zeroTrustMetrics/threatVectorMetrics/threatVectors"
+            )
+            for path in gaps
+        ), gaps
+
+    def test_fragment_cycle_is_reported_not_hung(self, schema):
+        result = validate_document(
+            "query Q { policyMetrics { zeroTrustMetrics { ...A } } }\n"
+            "fragment A on ZeroTrustMetrics { deviceCount ...A }",
+            schema,
+        )
+        assert "CyclicFragment" in {e["kind"] for e in result["errors"]}
 
     def test_malformed_query_raises(self, schema):
         from tools.gql_schema_check import GraphQLParseError

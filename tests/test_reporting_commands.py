@@ -12,11 +12,12 @@ Two things are load-bearing here:
    would not notice the CLI silently dropping the selector it was asked for, so
    the request body itself is asserted.
 
-2. **`diagnose-low-score` must not conflate no-policy with simulation.** That
-   command exists specifically to stop an agent recommending "activate the
-   simulation policies" for a group that has no policy at all. Fixing the query
-   underneath it must not quietly break that distinction, so every diagnosis
-   label is pinned against a 26.7-shaped response.
+2. **The 26.7 coverage reshape.** `avgDeviceCoverage` / `avgPolicyCoverage` were
+   deleted from `ZeroTrustMetrics`; the numbers now arrive nested under
+   `policyDeploymentMetrics`. The response fixtures below are shaped the new way,
+   and the command must pass the nested object through rather than flatten it
+   back onto the row under the old names — flattening would assert an
+   equivalence nobody has established against a live tenant.
 
 The GraphQL responses below are shaped as the live 26.7 endpoint returns them
 (`data.policyMetrics.zeroTrustMetrics[]`). No live tenant is contacted.
@@ -32,7 +33,6 @@ from elisity_cli.context import CliContext
 from elisity_cli.main import cli
 
 GRAPHQL_PATH = "/api/reporting/v1/data"
-POLICIES_PATH = "/api/policy/v1/policy-sets/policies"
 
 
 class FakeClient:
@@ -93,8 +93,10 @@ def _zt_row(**overrides):
         "deviceCount": 10,
         "totalFlows": 100,
         "restrictedFlows": 0,
-        "avgDeviceCoverage": 0.0,
-        "avgPolicyCoverage": 0.0,
+        "policyDeploymentMetrics": {
+            "deviceCoverage": 0.0,
+            "policyDeviceCoverage": 0.0,
+        },
         "l4Metrics": {"avgAllowedPorts": 12.0},
         "threatVectorMetrics": {"portExposure": [], "threatVectors": []},
     }
@@ -104,10 +106,6 @@ def _zt_row(**overrides):
 
 def _zt_response(rows):
     return {"data": {"policyMetrics": {"zeroTrustMetrics": rows}}}
-
-
-def _policy(pg_id, mode, disabled=False):
-    return {"srcId": pg_id, "dstId": None, "monitorMode": mode, "disabled": disabled}
 
 
 # --------------------------------------------------------------------------
@@ -191,83 +189,46 @@ class TestGraphQLErrorsSurface:
 
 
 # --------------------------------------------------------------------------
-# diagnose-low-score — the no-policy vs simulation distinction
+# The 26.7 coverage reshape — nested, not flattened
 # --------------------------------------------------------------------------
 
 
-class TestDiagnoseLowScore:
-    """Every diagnosis label pinned against a 26.7-shaped response."""
+class TestCoverageReshape:
+    """`avgDeviceCoverage` / `avgPolicyCoverage` are gone from the schema."""
 
-    @pytest.fixture
-    def diagnosed(self, runner, fake):
-        rows = [
-            _zt_row(policyGroupId="pg-none", policyGroupName="NoPolicy"),
-            _zt_row(policyGroupId="pg-sim", policyGroupName="SimOnly"),
-            _zt_row(policyGroupId="pg-ext", policyGroupName="External"),
-            _zt_row(policyGroupId="pg-mixed", policyGroupName="Mixed"),
-            _zt_row(policyGroupId="pg-active", policyGroupName="ActiveLow"),
-        ]
-        policies = [
-            _policy("pg-sim", "MONITOR_ONLY"),
-            _policy("pg-ext", "MONITOR_EXTERNAL"),
-            _policy("pg-mixed", "MONITOR_AND_ENFORCE"),
-            _policy("pg-mixed", "MONITOR_ONLY"),
-            _policy("pg-active", "MONITOR_AND_ENFORCE"),
-            # A disabled policy must not count — otherwise a group with only
-            # disabled policies reads as ACTIVE_LOW_COVERAGE instead of NO_POLICY.
-            _policy("pg-none", "MONITOR_AND_ENFORCE", disabled=True),
-        ]
-        fake(graphql_response=_zt_response(rows), policies=policies)
-        result = runner.invoke(cli, ["reporting", "diagnose-low-score"])
+    def test_query_selects_the_nested_deployment_metrics(self):
+        query = reporting._ZERO_TRUST_QUERY
+        assert "policyDeploymentMetrics {" in query
+        assert "deviceCoverage" in query
+        assert "policyDeviceCoverage" in query
+
+    @pytest.mark.parametrize("field", ["avgDeviceCoverage", "avgPolicyCoverage"])
+    def test_removed_fields_are_not_selected(self, field):
+        """Selecting either one is the exact FieldUndefined 26.7 returned."""
+        assert field not in reporting._ZERO_TRUST_QUERY
+
+    def test_nested_object_reaches_the_user_unflattened(self, runner, fake):
+        """The row is passed through as the server shapes it.
+
+        Flattening `policyDeploymentMetrics.deviceCoverage` back up to
+        `avgDeviceCoverage` would silently tell every existing script that the
+        old measurement survived under the old name. It did not: the units and
+        the row grain of the new fields are unconfirmed, so the CLI reports the
+        server's shape and says so in `--help`.
+        """
+        fake(graphql_response=_zt_response([
+            _zt_row(policyDeploymentMetrics={"deviceCoverage": 41.5,
+                                             "policyDeviceCoverage": 12.0}),
+        ]))
+        result = runner.invoke(cli, ["reporting", "get-zero-trust-metrics"])
         assert result.exit_code == 0, result.output
-        return {row["policyGroupName"]: row for row in json.loads(result.output)}
-
-    @pytest.mark.parametrize(
-        "group,diagnosis",
-        [
-            ("NoPolicy", "NO_POLICY"),
-            ("SimOnly", "SIMULATION_ONLY"),
-            ("External", "EXTERNAL_ONLY"),
-            ("Mixed", "MIXED_LOW_COVERAGE"),
-            ("ActiveLow", "ACTIVE_LOW_COVERAGE"),
-        ],
-    )
-    def test_diagnosis_label(self, diagnosed, group, diagnosis):
-        assert diagnosed[group]["diagnosis"] == diagnosis
-
-    def test_no_policy_is_not_told_to_activate_simulations(self, diagnosed):
-        """The whole point of the command: NO_POLICY != SIMULATION_ONLY."""
-        remediation = diagnosed["NoPolicy"]["remediation"]
-        assert "no policy" in remediation.lower()
-        assert "Do NOT recommend `change-status`" in remediation
-
-    def test_simulation_only_is_told_to_activate(self, diagnosed):
-        assert "change-status" in diagnosed["SimOnly"]["remediation"]
-
-    def test_policy_counts_are_reported(self, diagnosed):
-        assert diagnosed["Mixed"]["policiesActive"] == 1
-        assert diagnosed["Mixed"]["policiesSimulation"] == 1
-        assert diagnosed["NoPolicy"]["policiesActive"] == 0
-
-    def test_uses_the_filters_shaped_query(self, runner, fake):
-        """diagnose-low-score composes the same query — it must carry the fix."""
-        client = fake(graphql_response=_zt_response([]), policies=[])
-        runner.invoke(cli, ["reporting", "diagnose-low-score"])
-        body = client.posts[0]["body"]
-        assert "filters: $filters" in body["query"]
-        assert "$macAddress" not in body["query"]
-
-    def test_threshold_filters_healthy_groups(self, runner, fake):
-        rows = [
-            _zt_row(policyGroupId="pg-good", policyGroupName="Healthy",
-                    avgDeviceCoverage=99.0, avgPolicyCoverage=99.0),
-            _zt_row(policyGroupId="pg-bad", policyGroupName="Low",
-                    avgDeviceCoverage=10.0, avgPolicyCoverage=10.0),
-        ]
-        fake(graphql_response=_zt_response(rows), policies=[])
-        result = runner.invoke(cli, ["reporting", "diagnose-low-score", "--threshold", "50"])
-        names = {row["policyGroupName"] for row in json.loads(result.output)}
-        assert names == {"Low"}
+        row = json.loads(result.output)[0]
+        assert row["policyDeploymentMetrics"] == {
+            "deviceCoverage": 41.5,
+            "policyDeviceCoverage": 12.0,
+        }
+        assert "avgDeviceCoverage" not in row
+        assert "avgPolicyCoverage" not in row
 
 
 class TestListSnapshots:
@@ -302,7 +263,19 @@ class TestRemovedCommands:
     """CCC 26.7 removed the fields these commands queried."""
 
     @pytest.mark.parametrize(
-        "command", ["get-policy-count-needed", "get-policy-set-enforcement-score"]
+        "command",
+        [
+            "get-policy-count-needed",
+            "get-policy-set-enforcement-score",
+            # Removed in this round: its filter was `avgDeviceCoverage <
+            # threshold OR avgPolicyCoverage < threshold` and both fields are
+            # gone. Neither the units nor the row grain of the replacement
+            # fields can be established without a live tenant, and a mis-scaled
+            # threshold makes the command recommend `policy change-status` for
+            # every group in the tenant -- the precise failure it existed to
+            # prevent.
+            "diagnose-low-score",
+        ],
     )
     def test_command_is_gone(self, runner, command):
         result = runner.invoke(cli, ["reporting", command])

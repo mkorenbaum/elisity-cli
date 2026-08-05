@@ -2,7 +2,7 @@
 
 [![tests](https://github.com/mkorenbaum/elisity-cli/actions/workflows/test.yml/badge.svg)](https://github.com/mkorenbaum/elisity-cli/actions/workflows/test.yml)
 
-Command-line interface to the Elisity Cloud Control Center (CCC) API. Provides complete coverage of the CCC API surface — all 583 REST endpoints from the OpenAPI spec, plus 18 hand-coded GraphQL commands for the `/api/reporting/v1/data` endpoint (Zero Trust scores, threat vectors, per-site KPIs, traffic vectors) that the OpenAPI spec doesn't include, plus a 3-command CLI-native `glossary` group that maps Elisity UI terminology to CLI commands.
+Command-line interface to the Elisity Cloud Control Center (CCC) API. Provides complete coverage of the CCC API surface — all 583 REST endpoints from the OpenAPI spec, plus 17 hand-coded GraphQL commands for the `/api/reporting/v1/data` endpoint (Zero Trust scores, threat vectors, per-site KPIs, traffic vectors) that the OpenAPI spec doesn't include, plus a 3-command CLI-native `glossary` group that maps Elisity UI terminology to CLI commands.
 
 Generated from the **CCC 26.7** OpenAPI spec. See [What changed in CCC 26.7](#what-changed-in-ccc-267) for the command-level delta.
 
@@ -10,7 +10,7 @@ Generated from the **CCC 26.7** OpenAPI spec. See [What changed in CCC 26.7](#wh
 
 ## Features
 
-- **611 commands** total (583 auto-generated from the CCC OpenAPI spec + 18 hand-coded GraphQL reporting commands + 7 CLI-native auth/config + 3 CLI-native glossary commands)
+- **610 commands** total (583 auto-generated from the CCC OpenAPI spec + 17 hand-coded GraphQL reporting commands + 7 CLI-native auth/config + 3 CLI-native glossary commands)
 - **Multi-profile configuration** — manage multiple CCC environments (prod, staging, lab)
 - **4 output formats** — JSON (default), table, YAML, CSV
 - **JMESPath filtering** — reshape and filter output with `-q` expressions
@@ -108,7 +108,7 @@ curl -H "Authorization: Bearer $TOKEN" https://your-ccc.idp01.elisity.io/api/top
 | `insights` | 31 | Policy suggestions, dynamic/network group recommendations |
 | `flows` | 15 | Traffic flow search, device state, noise definitions, device heatmap |
 | `system` | 29 | Tasks, specs, state sync, task broker config, report snapshots + schedules |
-| `reporting` | 18 | **GraphQL** — Zero Trust scores, site KPIs, threat vectors, traffic-by-PG/IP. Hand-coded (the CCC reporting API is GraphQL, not in OpenAPI). |
+| `reporting` | 17 | **GraphQL** — Zero Trust scores, site KPIs, threat vectors, traffic-by-PG/IP. Hand-coded (the CCC reporting API is GraphQL, not in OpenAPI). |
 | `glossary` | 3 | Map Elisity UI terminology to CLI commands |
 | `auth` | 3 | Test connection, get token, decode JWT |
 | `config` | 4 | Profile management, configuration display |
@@ -297,13 +297,49 @@ tenant. `tools/gql_schema_check.py` + `tests/test_reporting_graphql_schema.py`
 now validate every reporting query against a staged introspection of the live
 schema, so the next drift fails the suite instead of shipping.
 
-- **`get-zero-trust-metrics` — fixed.** The per-device selectors moved out of
-  `zeroTrustMetrics`'s top-level arguments into a `ZeroTrustFilters` input
-  object; passing `macAddress` at the top level is rejected with
+- **`get-zero-trust-metrics` — fixed, twice.** Two separate 26.7 changes broke
+  this query, one layer apart.
+
+  *Arguments.* The per-device selectors moved out of `zeroTrustMetrics`'s
+  top-level arguments into a `ZeroTrustFilters` input object; passing
+  `macAddress` at the top level is rejected with
   `Validation error (UnknownArgument@[policyMetrics/zeroTrustMetrics])`. The
   argument now travels in `filters`, and a new repeatable `--mac-address`
-  option exposes it (it implies `--include-mac`). `diagnose-low-score` and
-  `list-snapshots` share this query and are fixed by the same change.
+  option exposes it (it implies `--include-mac`). `list-snapshots` shares this
+  query and is fixed by the same change.
+
+  *Selection set.* `avgDeviceCoverage` and `avgPolicyCoverage` no longer exist
+  on `ZeroTrustMetrics`
+  (`FieldUndefined@[policyMetrics/zeroTrustMetrics/avgDeviceCoverage]`). This is
+  a **reshape, not a rename**: the coverage numbers now live inside a nested
+  `policyDeploymentMetrics` object. The command selects `deviceCoverage` and
+  `policyDeviceCoverage` from it and returns the object **as the server shapes
+  it** — deliberately not flattened back onto the row under the old names,
+  because nothing in 26.7 states the new fields are the same measurement on the
+  same 0–100 scale. **Any script reading `.avgDeviceCoverage` must be repointed
+  at `.policyDeploymentMetrics.deviceCoverage`, and any threshold written for
+  the old scale must be re-checked against real output.**
+
+  The other four `policyDeploymentMetrics` fields (`policyWorkloadCoverage`,
+  `workloadCoverage`, `devicePolicyCounts`, `workloadPolicyCounts`) are not
+  selected: the introspection available carried field names but not type kinds,
+  and selecting an object field without a sub-selection fails validation for the
+  whole query.
+
+- **`diagnose-low-score` — REMOVED.** It filtered on
+  `avgDeviceCoverage < threshold OR avgPolicyCoverage < threshold`, and both
+  fields are gone. It was not re-pointed at the nested replacements because two
+  things about them cannot be established without a live tenant: their **units**
+  (`--threshold` is documented and defaulted as a percentage — a 0.0–1.0
+  fraction would flag every group in the tenant) and the **row grain** to
+  aggregate over. Since the command existed precisely to stop an agent
+  recommending `policy change-status` for a group that has no policy, a
+  mis-scaled version would produce exactly the failure it was built to prevent.
+  Same rule as the two removals below. The manual equivalent — take a low row's
+  `policyGroupId`, then read the `monitorMode` of the policies referencing it
+  via `policy get-all-policies-as-nd-json` — is documented in
+  [docs/AGENTS.md](docs/AGENTS.md#diagnosing-a-lowzero-zero-trust-score-do-not-guess-the-cause)
+  and in `get-zero-trust-metrics --help`.
 - **`get-policy-count-needed` — REMOVED.** `policyMetrics.countNeeded` no longer
   exists in 26.7 (`FieldUndefined`). It was not rewritten onto `coverage`:
   coverage answers "how covered are the policy groups I have", not "how many
@@ -314,9 +350,21 @@ schema, so the next drift fails the suite instead of shipping.
   (`FieldUndefined`). No 26.7 field answers "enforcement score for one policy
   set". Closest surviving surfaces: `get-aggregate-enforcement-score`
   (tenant-wide), `get-site-kpis` (`policyEnforcementScore` per site), and
-  `get-zero-trust-metrics` / `diagnose-low-score` (per policy group).
+  `get-zero-trust-metrics` (per policy group). Confirmed against live 26.7
+  introspection: `PolicyMetrics` carries exactly `count`, `coverage`,
+  `aggregatePolicyEnforcementScore`, `policyGroups`, `zeroTrustMetrics` — there
+  is no `policySetEnforcementScore` on it.
 
-The `reporting` group is therefore **18 commands**, down from 20.
+The `reporting` group is therefore **17 commands**, down from 20.
+
+`tools/gql_schema_check.py` was extended in the same round: it now validates
+**selection sets and nested fields**, not just arguments, and resolves named and
+inline fragments against their type condition. The first version passed the
+query the server rejected — `zeroTrustMetrics`'s arguments were correct, and the
+fields underneath it were filed as "unverified" because `ZeroTrustMetrics` had
+never been staged. It now reports coverage over **field paths** rather than
+queries, and fails outright if staging for a type a shipped query selects on
+goes missing, so the denominator cannot quietly shrink again.
 
 ### Removed commands (breaking)
 
@@ -712,7 +760,7 @@ A further 118 operations changed only in their response schema or status codes. 
 - [AI Agent Operating Guide](docs/AGENTS.md) — How an AI agent should run the CLI on a human's behalf
 - [Glossary Appendix](docs/glossary.md) — UI term → CLI command reference (human-readable)
 - [Configuration Reference](docs/configuration.md) — Profiles, env vars, output formats, JMESPath
-- [Command Reference](docs/command-reference.md) — All 611 commands with descriptions
+- [Command Reference](docs/command-reference.md) — All 610 commands with descriptions
 
 ## License
 

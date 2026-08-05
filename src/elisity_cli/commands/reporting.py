@@ -38,6 +38,26 @@ GRAPHQL_PATH = "/api/reporting/v1/data"
 # so the argument was moved into `filters` rather than dropped. `$macAddress`
 # went with it — an orphaned variable declaration would itself be a
 # `ValidationError: Unused variable`.
+#
+# CCC 26.7, second breakage (the SELECTION SET, one layer below the arguments):
+# `avgDeviceCoverage` and `avgPolicyCoverage` no longer exist on
+# `ZeroTrustMetrics`:
+#   Validation error (FieldUndefined@[policyMetrics/zeroTrustMetrics/avgDeviceCoverage])
+#   Validation error (FieldUndefined@[policyMetrics/zeroTrustMetrics/avgPolicyCoverage])
+# This is a RESHAPE, not a rename: the coverage numbers now live inside the
+# nested `policyDeploymentMetrics` object, which carries six fields
+# (policyDeviceCoverage, deviceCoverage, policyWorkloadCoverage,
+# workloadCoverage, devicePolicyCounts, workloadPolicyCounts). The two selected
+# below are the ones that answer the question this command has always asked;
+# they are returned as a nested object rather than flattened onto the row,
+# because flattening would assert a 1:1 equivalence with the old tenant-level
+# averages that nobody has established. See README "What changed in CCC 26.7".
+#
+# The other four `policyDeploymentMetrics` fields are deliberately NOT selected:
+# the live introspection handoff carried field NAMES only, not type kinds, so we
+# cannot tell a scalar from an object here, and selecting an object without a
+# sub-selection fails validation for the whole query. `devicePolicyCounts` /
+# `workloadPolicyCounts` read as aggregates and are the likeliest objects.
 _ZERO_TRUST_QUERY = """query GetRiskAttributionScores($snapshotDateTimes: [DateTime!]!, $site: [Site!], $includeMac: Boolean!, $includeL4Detail: Boolean = false, $filters: ZeroTrustFilters) {
   policyMetrics {
     zeroTrustMetrics(
@@ -59,8 +79,11 @@ _ZERO_TRUST_QUERY = """query GetRiskAttributionScores($snapshotDateTimes: [DateT
       deviceCount
       totalFlows
       restrictedFlows
-      avgDeviceCoverage
-      avgPolicyCoverage
+      policyDeploymentMetrics {
+        deviceCoverage
+        policyDeviceCoverage
+        __typename
+      }
       l4Metrics {
         avgAllowedPorts
         avgAllowedTcp @include(if: $includeL4Detail)
@@ -256,18 +279,37 @@ def cmd_zero_trust(
 ):
     """Get Zero Trust scores (the metrics from CCC's Zero Trust page).
 
-    Returns one row per (site, policy group, snapshot) with deviceCount,
-    totalFlows, restrictedFlows, avgDeviceCoverage (Zero Trust device score),
-    avgPolicyCoverage (Zero Trust policy score), plus L4 port exposure and
-    threat-vector metrics (MITRE techniques + port exposure scores).
+    Returns the rows CCC's `zeroTrustMetrics` serves for the snapshot, each
+    carrying deviceCount, totalFlows, restrictedFlows, the site / policy-set /
+    policy-group / distribution-zone identifiers, L4 port exposure and
+    threat-vector metrics (MITRE techniques + port exposure scores), plus a
+    nested `policyDeploymentMetrics` object holding `deviceCoverage` and
+    `policyDeviceCoverage`.
 
-    IMPORTANT — the score alone does NOT tell you *why* it is low. A 0%
-    coverage row can mean the group has no policy, has only simulation
-    (MONITOR_ONLY) policies, or has active policies that don't cover its real
-    traffic — three causes with different fixes. Do not assume "simulation" and
-    recommend `policy change-status` from this command's output. To attribute a
-    low score to the right cause, use `reporting diagnose-low-score`, which
-    joins these scores with each group's actual policy status.
+    CHANGED IN CCC 26.7 — read this before reusing a 26.3 script or query.
+    The flat `avgDeviceCoverage` / `avgPolicyCoverage` fields are gone from the
+    schema; the coverage numbers now arrive nested under
+    `policyDeploymentMetrics`. That is a reshape, not a rename: the fields are
+    not documented as the same measurement, so this command reports the
+    server's shape verbatim rather than flattening them back onto the row under
+    the old names. Any JMESPath/jq expression that referenced `avgDeviceCoverage`
+    must be repointed at `policyDeploymentMetrics.deviceCoverage`, and any
+    threshold written against the old 0–100 scale must be re-checked against
+    real output before it is trusted — the units of the new fields have not
+    been confirmed against a live tenant.
+
+    IMPORTANT — a low score does NOT tell you *why* it is low. A 0% coverage
+    row can mean the group has no policy, has only simulation (MONITOR_ONLY)
+    policies, or has active policies that don't cover its real traffic — three
+    causes with different fixes. Do not assume "simulation" and recommend
+    `policy change-status` from this command's output. To tell them apart, list
+    the group's policies and look at their `monitorMode`:
+
+      elisity -q '[?srcId==`<policyGroupId>` || dstId==`<policyGroupId>`].{name: name, mode: monitorMode, disabled: disabled}' \\
+        -f table policy get-all-policies-as-nd-json
+
+    (`reporting diagnose-low-score` used to do that join automatically. It was
+    removed in the 26.7 update — see README "What changed in CCC 26.7".)
 
     Examples (note: -q / -f are top-level flags — place them BEFORE the
     group name):
@@ -278,8 +320,8 @@ def cmd_zero_trust(
       elisity reporting get-zero-trust-metrics --include-l4-detail
       elisity reporting get-zero-trust-metrics --mac-address 00:11:22:33:44:55
 
-      # Per-policy-group coverage scores
-      elisity -q '[].{site: siteName, pg: policyGroupName, devices: deviceCount, devCov: avgDeviceCoverage, polCov: avgPolicyCoverage}' \\
+      # Coverage per row
+      elisity -q '[].{site: siteName, pg: policyGroupName, devices: deviceCount, devCov: policyDeploymentMetrics.deviceCoverage, polDevCov: policyDeploymentMetrics.policyDeviceCoverage}' \\
         -f table reporting get-zero-trust-metrics
 
       # Tenant total device count covered by the snapshot
@@ -288,7 +330,7 @@ def cmd_zero_trust(
       # Device-weighted average coverage via jq (JMESPath lacks generic
       # arithmetic; null-safe with `// 0`)
       elisity reporting get-zero-trust-metrics | jq '
-        (map((.avgDeviceCoverage // 0) * .deviceCount) | add) /
+        (map((.policyDeploymentMetrics.deviceCoverage // 0) * .deviceCount) | add) /
         (map(.deviceCount) | add)
       '
     """
@@ -314,192 +356,45 @@ def cmd_zero_trust(
 
 
 # ---------------------------------------------------------------------------
-# diagnose-low-score — joins the Zero Trust coverage metric with the actual
-# per-policy-group policy status so a low/zero score can be attributed to the
-# RIGHT root cause. A 0% coverage score alone is ambiguous: it can mean the
-# group has no policy at all, has only simulation (MONITOR_ONLY) policies, or
-# has active policies that don't cover the group's real traffic. Each case has
-# a different fix — recommending "activate the simulation policies" for a group
-# that has no policy (or whose policies are already active) is a fabricated
-# remediation. This command makes the distinction explicit.
+# REMOVED IN CCC 26.7: `diagnose-low-score`
+#
+# The command joined the Zero Trust coverage metric with each policy group's
+# actual policy status so a low/zero score could be attributed to the right
+# cause (NO_POLICY / SIMULATION_ONLY / EXTERNAL_ONLY / MIXED_LOW_COVERAGE /
+# ACTIVE_LOW_COVERAGE) instead of being blamed on "simulation" by default.
+#
+# Its filter was `avgDeviceCoverage < threshold OR avgPolicyCoverage <
+# threshold`, and BOTH of those fields were deleted from `ZeroTrustMetrics` in
+# 26.7. The coverage numbers moved into the nested `policyDeploymentMetrics`
+# object, which is a reshape rather than a rename — two things about the new
+# shape are unknown from a static handoff and neither can be guessed safely:
+#
+#   1. Units. `--threshold` is documented and defaulted as a PERCENTAGE (50.0,
+#      "use 100 to classify every group"). If `deviceCoverage` is a 0.0–1.0
+#      fraction rather than 0–100, every row falls under the default threshold
+#      and the command confidently reports the entire tenant as low-coverage.
+#   2. Grain. 26.7 serves per-device rows; the diagnosis is per policy group.
+#      Collapsing rows to a group verdict needs an aggregation (plain mean vs
+#      device-weighted mean vs worst-case) that changes which groups are
+#      flagged, and no source states which one CCC's own UI uses.
+#
+# Shipping a guess here is worse than shipping nothing: the whole point of the
+# command was to stop an agent recommending `policy change-status` on a group
+# that has no policy at all, and a mis-scaled threshold makes it recommend that
+# for every group in the tenant. Removed on the same rule that removed
+# `get-policy-count-needed` and `get-policy-set-enforcement-score` — a
+# plausible-but-wrong number is worse than an absent command.
+#
+# To restore it, someone with live 26.7 tenant access must establish (a) the
+# range of `policyDeploymentMetrics.deviceCoverage` on real rows and (b) the
+# row grain actually returned for a policy group; the classification logic
+# itself (policy-stream tally -> NO_POLICY / SIMULATION_ONLY / ... ) was
+# correct and is preserved in git history at commit d212e72.
+#
+# The manual equivalent is in `get-zero-trust-metrics`'s help text: take a
+# low-scoring row's policyGroupId and inspect the monitorMode of the policies
+# that reference it via `policy get-all-policies-as-nd-json`.
 # ---------------------------------------------------------------------------
-
-_POLICIES_ENDPOINT = "/api/policy/v1/policy-sets/policies"
-
-# Remediation guidance keyed by diagnosis. Kept terse and pointing at real
-# commands so an agent can act without inventing verbs.
-_DIAGNOSIS_REMEDIATION = {
-    "NO_POLICY": (
-        "No policy governs this group — the score is 0 because nothing is "
-        "defined, NOT because a policy is in simulation. Create policy "
-        "(`elisity policy create-policy`), check `elisity insights "
-        "get-policy-suggestion-list` for AI-suggested policies, or — if these "
-        "devices belong in another group — reclassify them. Do NOT recommend "
-        "`change-status`: there is no policy to change."
-    ),
-    "SIMULATION_ONLY": (
-        "Every policy for this group is in Simulation (MONITOR_ONLY). Review "
-        "the simulated traffic, then activate with `elisity policy "
-        "change-status` (MONITOR_ONLY -> MONITOR_AND_ENFORCE)."
-    ),
-    "EXTERNAL_ONLY": (
-        "Policies for this group are in Independent Control (MONITOR_EXTERNAL) "
-        "— enforcement is delegated to an external system, so CCC reports low "
-        "coverage by design. Confirm this is intentional before changing it."
-    ),
-    "MIXED_LOW_COVERAGE": (
-        "This group has BOTH active and simulation policies, yet coverage is "
-        "still low. Activating the remaining simulation policies may help, but "
-        "active policies already exist and coverage is low — verify the "
-        "group's real flows actually match those policies "
-        "(`elisity reporting get-traffic-count --policy-status NO_POLICY "
-        "--site <site>`) before assuming activation alone fixes the score."
-    ),
-    "ACTIVE_LOW_COVERAGE": (
-        "Policies for this group are already active (MONITOR_AND_ENFORCE), so "
-        "this is NOT a simulation problem. Low coverage means the group's real "
-        "traffic isn't covered by those policies — typically unclassified "
-        "devices in a catch-all group, or flows hitting PG-pairs with no rule. "
-        "Reclassify devices into specific groups and/or add policies for the "
-        "uncovered flows; inspect with `elisity reporting get-traffic-count "
-        "--policy-status NO_POLICY --site <site>`."
-    ),
-}
-
-
-def _classify_pg(active: int, simulation: int, external: int):
-    """Map a policy-mode tally for one policy group to a diagnosis label."""
-    total = active + simulation + external
-    if total == 0:
-        return "NO_POLICY"
-    if active > 0 and simulation > 0:
-        return "MIXED_LOW_COVERAGE"
-    if active > 0:
-        return "ACTIVE_LOW_COVERAGE"
-    if simulation > 0:
-        return "SIMULATION_ONLY"
-    return "EXTERNAL_ONLY"
-
-
-@group.command("diagnose-low-score")
-@click.option(
-    "--snapshot",
-    "snapshot",
-    default=None,
-    help="ISO-8601 snapshot time (top-of-hour UTC). Default: previous full hour. "
-    "Use `elisity reporting list-snapshots` to find a populated snapshot.",
-)
-@click.option(
-    "--site",
-    "sites",
-    multiple=True,
-    default=None,
-    help="Filter to one or more site names (server-side). Repeatable.",
-)
-@click.option(
-    "--threshold",
-    type=float,
-    default=50.0,
-    help="Flag policy groups whose device OR policy coverage is below this "
-    "percentage (default 50.0). Use 100 to classify every group.",
-)
-@pass_context
-def cmd_diagnose_low_score(ctx, snapshot, sites, threshold):
-    """Explain WHY policy groups score low — no-policy vs simulation vs uncovered.
-
-    A Zero Trust coverage score of 0 is ambiguous on its own. This command
-    joins the coverage metric (`get-zero-trust-metrics`) with the actual policy
-    status of each group (from the policy stream) and assigns one of:
-
-    \b
-      NO_POLICY           no policy references the group at all -> create one
-      SIMULATION_ONLY     all policies are MONITOR_ONLY          -> activate them
-      EXTERNAL_ONLY       all policies are MONITOR_EXTERNAL       -> by design
-      MIXED_LOW_COVERAGE  active + simulation, still low coverage -> verify flows
-      ACTIVE_LOW_COVERAGE policies already active, still low      -> reclassify devices
-
-    Each row carries a `remediation` string. This is what stops an agent from
-    recommending "activate the simulation policies" for a group that has no
-    policy (nothing to activate) or whose policies are already active.
-
-    Heuristic + limitation: a group is matched to a policy when it appears as
-    the source OR destination of a non-disabled policy. System groups shared
-    across sites (e.g. Unassigned) match policies authored at other sites, so
-    their policy counts are tenant-wide, not site-scoped — the diagnosis label
-    is still correct, but treat the raw counts as an upper bound.
-
-    Examples:
-      elisity -f table reporting diagnose-low-score
-      elisity reporting diagnose-low-score --snapshot 2026-05-28T11:00:00.000Z
-      elisity reporting diagnose-low-score --site Hospital --threshold 100
-    """
-    # 1. Coverage metrics for the snapshot.
-    variables = {
-        "snapshotDateTimes": [snapshot] if snapshot else [_default_snapshot()],
-        "includeMac": False,
-        "includeL4Detail": False,
-    }
-    if sites:
-        variables["site"] = _lookup_sites(ctx, list(sites))
-
-    result = _post_graphql(ctx, "GetRiskAttributionScores", variables, _ZERO_TRUST_QUERY)
-    _check_errors(result)
-    metrics = (
-        result.get("data", {}).get("policyMetrics", {}).get("zeroTrustMetrics") or []
-    )
-
-    # 2. Policy stream -> per-PG mode tally (keyed by PG id, src or dst).
-    client = ctx.ensure_client()
-    policies = client.get_ndjson(_POLICIES_ENDPOINT) or []
-    by_pg: dict = {}
-    for p in policies:
-        if p.get("disabled"):
-            continue
-        mode = p.get("monitorMode")
-        for key in ("srcId", "dstId"):
-            pg_id = p.get(key)
-            if not pg_id:
-                continue
-            tally = by_pg.setdefault(
-                pg_id, {"MONITOR_AND_ENFORCE": 0, "MONITOR_ONLY": 0, "MONITOR_EXTERNAL": 0}
-            )
-            if mode in tally:
-                tally[mode] += 1
-
-    # 3. Join: flag rows below threshold, classify, attach remediation.
-    rows = []
-    for m in metrics:
-        dev_cov = m.get("avgDeviceCoverage")
-        pol_cov = m.get("avgPolicyCoverage")
-        low = (dev_cov is None or dev_cov < threshold) or (
-            pol_cov is None or pol_cov < threshold
-        )
-        if not low:
-            continue
-        tally = by_pg.get(m.get("policyGroupId"), {})
-        active = tally.get("MONITOR_AND_ENFORCE", 0)
-        simulation = tally.get("MONITOR_ONLY", 0)
-        external = tally.get("MONITOR_EXTERNAL", 0)
-        diagnosis = _classify_pg(active, simulation, external)
-        rows.append(
-            {
-                "siteName": m.get("siteName"),
-                "policyGroupName": m.get("policyGroupName"),
-                "policyGroupId": m.get("policyGroupId"),
-                "deviceCount": m.get("deviceCount"),
-                "avgDeviceCoverage": dev_cov,
-                "avgPolicyCoverage": pol_cov,
-                "policiesActive": active,
-                "policiesSimulation": simulation,
-                "policiesExternal": external,
-                "diagnosis": diagnosis,
-                "remediation": _DIAGNOSIS_REMEDIATION[diagnosis],
-            }
-        )
-
-    rows.sort(key=lambda r: (r["avgDeviceCoverage"] if r["avgDeviceCoverage"] is not None else -1))
-    render(rows, ctx.format, ctx.query)
-
 
 # ---------------------------------------------------------------------------
 # Additional metric queries discovered via GraphQL introspection of

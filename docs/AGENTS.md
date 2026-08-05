@@ -55,7 +55,7 @@ or read [glossary.md](glossary.md).
 | "Zero Trust score" / "posture score" / "compliance score" | Policy Enforcement Score | `elisity reporting get-aggregate-enforcement-score` |
 | "Zero Trust score for site X" | Policy Enforcement Score | `elisity reporting get-site-kpis --site <SITE>` (CCC 26.7 removed the per-policy-set score) |
 | "per-PG Zero Trust breakdown" | Policy Enforcement Score | `elisity reporting get-zero-trust-metrics` |
-| "why is the score low" / "what should I fix to improve the score" | Policy Enforcement Score | `elisity -f table reporting diagnose-low-score` |
+| "why is the score low" / "what should I fix to improve the score" | Policy Enforcement Score | `elisity reporting get-zero-trust-metrics` then `elisity policy get-all-policies-as-nd-json` — see [Diagnosing a low/zero Zero Trust score](#diagnosing-a-lowzero-zero-trust-score-do-not-guess-the-cause) |
 | "list our VENs" / "list switches" | Virtual Edge Node | `elisity topology get-virtual-edge-nodes` |
 | "VEN inventory by model" | Virtual Edge Node | `elisity reporting get-virtual-edge-nodes-count` |
 | "list Virtual Edges" | Virtual Edge | `elisity reporting get-virtual-edges-count` |
@@ -181,27 +181,44 @@ Recommending `policy change-status` for a *no-policy* group, or for a group
 whose policies are *already active*, is a fabricated remediation — it names a
 fix that does nothing. That violates the honesty rule.
 
-**Do not infer the cause from the score. Run the command that joins the score
-with the actual policy status:**
+**Do not infer the cause from the score. Read the group's actual policy status.**
+That is two calls:
 
 ```bash
-# One call: every low-scoring group, classified, with a per-row remediation.
-elisity -f table reporting diagnose-low-score
+# 1. The low scorers, with the policyGroupId you need for step 2.
+elisity -f table \
+  -q '[].{site: siteName, pg: policyGroupName, pgId: policyGroupId, devices: deviceCount, devCov: policyDeploymentMetrics.deviceCoverage}' \
+  reporting get-zero-trust-metrics
 
-# Worst-first, full detail (includes the `remediation` field to relay verbatim)
-elisity reporting diagnose-low-score --threshold 100
-
-# Scope to a site, e.g. the one the human named
-elisity reporting diagnose-low-score --site Hospital
+# 2. The policies that reference that group, and what mode they are in.
+#    This is the cause. Substitute the pgId from step 1.
+elisity -f table \
+  -q '[?srcId==`PG_ID` || dstId==`PG_ID`].{name: name, mode: monitorMode, disabled: disabled}' \
+  policy get-all-policies-as-nd-json
 ```
 
-Each row carries a `diagnosis` (`NO_POLICY`, `SIMULATION_ONLY`, `EXTERNAL_ONLY`,
-`MIXED_LOW_COVERAGE`, `ACTIVE_LOW_COVERAGE`) and a `remediation` string. Relay
-the remediation; do not substitute your own assumption. Only after
-`diagnose-low-score` says `SIMULATION_ONLY` (or `MIXED_LOW_COVERAGE`) should you
-propose `policy change-status` — and `change-status` is a state-changing verb,
-so it still needs explicit human approval (see
+Read step 2 like this — the mapping is mechanical, so do not editorialise:
+
+| What step 2 returns | Cause | What to propose |
+|---|---|---|
+| no rows | **no policy** | create a policy, check `insights get-policy-suggestion-list`, or reclassify the devices. Do **not** propose `change-status` — there is nothing to change |
+| all rows `MONITOR_ONLY` | **simulation only** | review the simulated traffic, then `policy change-status` |
+| all rows `MONITOR_EXTERNAL` | **independent control** | enforcement is delegated to another system; low coverage is by design. Confirm before changing |
+| any row `MONITOR_AND_ENFORCE` | **active but uncovered** | policies are already active — activating anything else will not move the score. Reclassify catch-all devices / add rules for the uncovered flows |
+
+Only when step 2 shows `MONITOR_ONLY` policies should you propose
+`policy change-status` — and `change-status` is a state-changing verb, so it
+still needs explicit human approval (see
 [Destructive operations](#destructive-operations)).
+
+> **Was `reporting diagnose-low-score`.** That command did this join in one call
+> and returned a `diagnosis` + `remediation` per row. CCC 26.7 deleted both
+> fields it filtered on (`avgDeviceCoverage`, `avgPolicyCoverage`) and reshaped
+> the coverage numbers into a nested object whose units and row grain are not
+> confirmed, so it was removed rather than re-pointed at a number that might be
+> on a different scale — a mis-scaled threshold would have made it flag every
+> group in the tenant. The two calls above are the manual equivalent, and the
+> reasoning rule they encode is unchanged.
 
 ---
 
@@ -356,11 +373,18 @@ elisity -f table reporting get-site-kpis \
   -q '[].{site: siteName, score: policyEnforcementScore}'
 #   → lowest scores are the drag.
 
-# 4. WHY they drag — per-group cause + fix. Don't infer "simulation" from a low
-#    score; this joins the score with each group's real policy status.
-elisity -f table reporting diagnose-low-score --threshold 100
-#   → NO_POLICY / SIMULATION_ONLY / ACTIVE_LOW_COVERAGE per group, with a
-#     remediation string. Relay that — see "Diagnosing a low/zero Zero Trust score".
+# 4. WHY they drag — per-group coverage, with the policyGroupId for step 5.
+elisity -f table \
+  -q '[].{site: siteName, pg: policyGroupName, pgId: policyGroupId, devCov: policyDeploymentMetrics.deviceCoverage}' \
+  reporting get-zero-trust-metrics
+
+# 5. The cause, per low-scoring group. Don't infer "simulation" from a low
+#    score — read the monitorMode of the policies that reference the group.
+elisity -f table \
+  -q '[?srcId==`PG_ID` || dstId==`PG_ID`].{name: name, mode: monitorMode, disabled: disabled}' \
+  policy get-all-policies-as-nd-json
+#   → no rows = no policy; all MONITOR_ONLY = simulation; any MONITOR_AND_ENFORCE
+#     = active but uncovered. See "Diagnosing a low/zero Zero Trust score".
 ```
 
 ### Example 2 — "List our switches in visibility-only mode at the Boston site."

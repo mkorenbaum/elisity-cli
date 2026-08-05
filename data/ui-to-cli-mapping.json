@@ -218,21 +218,21 @@
       {
         "intent": "Per-policy-group device + policy coverage breakdown",
         "command": "elisity reporting get-zero-trust-metrics",
-        "notes": "Returns avgDeviceCoverage + avgPolicyCoverage per (site, PG, snapshot). The matrix behind the headline score."
+        "notes": "Returns the zeroTrustMetrics rows for the snapshot. CCC 26.7 deleted the flat avgDeviceCoverage / avgPolicyCoverage fields; the coverage numbers now arrive nested as policyDeploymentMetrics.{deviceCoverage, policyDeviceCoverage}. Units and row grain of the new fields are not confirmed against a live tenant — re-check any threshold written against the old 0-100 scale."
       },
       {
         "intent": "Explain WHY the score is low, per policy group",
-        "command": "elisity reporting diagnose-low-score --threshold 100",
-        "notes": "Returns NO_POLICY / SIMULATION_ONLY / ACTIVE_LOW_COVERAGE per group with a remediation string. Do not infer the cause from the score alone."
+        "command": "elisity -q '[?srcId==`PG_ID` || dstId==`PG_ID`].{name: name, mode: monitorMode, disabled: disabled}' -f table policy get-all-policies-as-nd-json",
+        "notes": "Two steps: take policyGroupId from `reporting get-zero-trust-metrics`, then read the monitorMode of the policies referencing it. No rows = no policy; all MONITOR_ONLY = simulation; any MONITOR_AND_ENFORCE = active but uncovered. Do not infer the cause from the score alone. `reporting diagnose-low-score` did this in one call and was removed in CCC 26.7 — it filtered on the two deleted coverage fields."
       }
     ],
     "related_commands": [
       "elisity reporting get-aggregate-enforcement-score",
       "elisity reporting get-zero-trust-metrics",
-      "elisity reporting diagnose-low-score",
+      "elisity policy get-all-policies-as-nd-json",
       "elisity reporting get-site-kpis"
     ],
-    "note": "CCC 26.7 removed the REST endpoints `policy get-enforcement-score` and `policy get-enforcement-score-weight-settings`. The enforcement score is now only available through the GraphQL `reporting` group."
+    "note": "CCC 26.7 removed the REST endpoints `policy get-enforcement-score` and `policy get-enforcement-score-weight-settings`, and the GraphQL fields behind `reporting get-policy-set-enforcement-score` and `reporting diagnose-low-score`. The enforcement score is now only available through the surviving GraphQL `reporting` commands."
   },
   {
     "term": "Security Level (SL1-SL4)",

@@ -1,0 +1,856 @@
+[
+  {
+    "_type": "PolicyMetrics",
+    "_provenance": "live introspection of POST /api/reporting/v1/data on insights-demo.idp01.elisity.io (CCC 26.7), captured by Obiwan 2026-08-05; field names + argument names are verbatim. Return-type NAMES for `zeroTrustMetrics` and `coverage` are added here from the server's own output \u2014 the validation error 'Field ... in type ZeroTrustMetrics is undefined' and the coverage payload's __typename 'PolicyCoverage'. The capture itself did not request ofType depth. Verbatim copy kept alongside at ccc-26.7-policymetrics-introspection.json; test_staged_policymetrics_matches_the_verbatim_capture pins them together.",
+    "data": {
+      "__type": {
+        "name": "PolicyMetrics",
+        "fields": [
+          {
+            "name": "count",
+            "args": [
+              {
+                "name": "monitorMode",
+                "type": {
+                  "name": "MonitorMode",
+                  "kind": "ENUM"
+                }
+              },
+              {
+                "name": "dateTime",
+                "type": {
+                  "name": "DateTimeSelectionInput",
+                  "kind": "INPUT_OBJECT"
+                }
+              },
+              {
+                "name": "site",
+                "type": {
+                  "kind": "LIST",
+                  "ofType": {}
+                }
+              }
+            ],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "coverage",
+            "args": [
+              {
+                "name": "policySetId",
+                "type": {
+                  "kind": "LIST",
+                  "ofType": {}
+                }
+              },
+              {
+                "name": "policyGroupId",
+                "type": {
+                  "kind": "LIST",
+                  "ofType": {}
+                }
+              },
+              {
+                "name": "site",
+                "type": {
+                  "kind": "LIST",
+                  "ofType": {}
+                }
+              }
+            ],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "LIST",
+                "ofType": {
+                  "name": "PolicyCoverage"
+                }
+              }
+            }
+          },
+          {
+            "name": "aggregatePolicyEnforcementScore",
+            "args": [
+              {
+                "name": "dateTime",
+                "type": {
+                  "kind": "LIST",
+                  "ofType": {}
+                }
+              },
+              {
+                "name": "site",
+                "type": {
+                  "kind": "LIST",
+                  "ofType": {}
+                }
+              }
+            ],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "policyGroups",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "name": "PolicyGroupsMetrics"
+              }
+            }
+          },
+          {
+            "name": "zeroTrustMetrics",
+            "args": [
+              {
+                "name": "dateTime",
+                "type": {
+                  "kind": "LIST",
+                  "ofType": {}
+                }
+              },
+              {
+                "name": "site",
+                "type": {
+                  "kind": "LIST",
+                  "ofType": {}
+                }
+              },
+              {
+                "name": "filters",
+                "type": {
+                  "name": "ZeroTrustFilters",
+                  "kind": "INPUT_OBJECT"
+                }
+              }
+            ],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "LIST",
+                "ofType": {
+                  "name": "ZeroTrustMetrics"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "_type": "ZeroTrustMetrics",
+    "_provenance": "complete field list transcribed from Obiwan's live introspection handoff (input/LIVE-ZEROTRUSTMETRICS-SCHEMA.md, 2026-08-05). The handoff carried field NAMES only \u2014 no type kinds \u2014 so scalars and objects are indistinguishable here and no field is asserted to be selectable without a sub-selection. The eight nested object fields are linked to the types below by exact camelCase->PascalCase correspondence with the type list in the same handoff.",
+    "data": {
+      "__type": {
+        "name": "ZeroTrustMetrics",
+        "fields": [
+          {
+            "name": "dateTime",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "deviceId",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "ipAddress",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "macAddress",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "hostname",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "siteId",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "siteName",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "policySetId",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "policySetName",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "policyGroupId",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "policyGroupName",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "distributionZoneId",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "distributionZoneName",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "deviceCount",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "scoredFlows",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "totalFlows",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "restrictedFlows",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "crossPsMismatch",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "l4Metrics",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "LIST",
+                "ofType": {
+                  "name": "L4Metrics"
+                }
+              }
+            }
+          },
+          {
+            "name": "securityProfileMetrics",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "LIST",
+                "ofType": {
+                  "name": "SecurityProfileMetrics"
+                }
+              }
+            }
+          },
+          {
+            "name": "missingPolicyMetrics",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "LIST",
+                "ofType": {
+                  "name": "MissingPolicyMetrics"
+                }
+              }
+            }
+          },
+          {
+            "name": "missingPolicySetMetrics",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "LIST",
+                "ofType": {
+                  "name": "MissingPolicySetMetrics"
+                }
+              }
+            }
+          },
+          {
+            "name": "icMetrics",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "LIST",
+                "ofType": {
+                  "name": "IcMetrics"
+                }
+              }
+            }
+          },
+          {
+            "name": "gtvMetrics",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "LIST",
+                "ofType": {
+                  "name": "GtvMetrics"
+                }
+              }
+            }
+          },
+          {
+            "name": "policyDeploymentMetrics",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "LIST",
+                "ofType": {
+                  "name": "PolicyDeploymentMetrics"
+                }
+              }
+            }
+          },
+          {
+            "name": "threatVectorMetrics",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {
+                "kind": "LIST",
+                "ofType": {
+                  "name": "ThreatVectorMetrics"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "_type": "PolicyDeploymentMetrics",
+    "_provenance": "complete field list from the 'Nested types' section of input/LIVE-ZEROTRUSTMETRICS-SCHEMA.md (live 26.7 introspection, 2026-08-05). Field names only; no type kinds, so leaf types are left unresolved on purpose.",
+    "data": {
+      "__type": {
+        "name": "PolicyDeploymentMetrics",
+        "fields": [
+          {
+            "name": "policyDeviceCoverage",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "deviceCoverage",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "policyWorkloadCoverage",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "workloadCoverage",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "devicePolicyCounts",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "workloadPolicyCounts",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "_type": "MissingPolicyMetrics",
+    "_provenance": "complete field list from the 'Nested types' section of input/LIVE-ZEROTRUSTMETRICS-SCHEMA.md (live 26.7 introspection, 2026-08-05). Field names only; no type kinds, so leaf types are left unresolved on purpose.",
+    "data": {
+      "__type": {
+        "name": "MissingPolicyMetrics",
+        "fields": [
+          {
+            "name": "srcMissingPolicy",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "dstMissingPolicy",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "flowMissingPolicy",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "_type": "MissingPolicySetMetrics",
+    "_provenance": "complete field list from the 'Nested types' section of input/LIVE-ZEROTRUSTMETRICS-SCHEMA.md (live 26.7 introspection, 2026-08-05). Field names only; no type kinds, so leaf types are left unresolved on purpose.",
+    "data": {
+      "__type": {
+        "name": "MissingPolicySetMetrics",
+        "fields": [
+          {
+            "name": "srcMissingPolicySet",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "dstMissingPolicySet",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "flowMissingPolicySet",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "_type": "SecurityProfileMetrics",
+    "_provenance": "complete field list from the 'Nested types' section of input/LIVE-ZEROTRUSTMETRICS-SCHEMA.md (live 26.7 introspection, 2026-08-05). Field names only; no type kinds, so leaf types are left unresolved on purpose.",
+    "data": {
+      "__type": {
+        "name": "SecurityProfileMetrics",
+        "fields": [
+          {
+            "name": "src",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "dst",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "flow",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "_type": "IcMetrics",
+    "_provenance": "complete field list from the 'Nested types' section of input/LIVE-ZEROTRUSTMETRICS-SCHEMA.md (live 26.7 introspection, 2026-08-05). Field names only; no type kinds, so leaf types are left unresolved on purpose.",
+    "data": {
+      "__type": {
+        "name": "IcMetrics",
+        "fields": [
+          {
+            "name": "srcPolicyIc",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "dstPolicyIc",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "flowPolicyIc",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "siteIc",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "dzIc",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "effectiveIc",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "_type": "GtvMetrics",
+    "_provenance": "complete field list from the 'Nested types' section of input/LIVE-ZEROTRUSTMETRICS-SCHEMA.md (live 26.7 introspection, 2026-08-05). Field names only; no type kinds, so leaf types are left unresolved on purpose.",
+    "data": {
+      "__type": {
+        "name": "GtvMetrics",
+        "fields": [
+          {
+            "name": "srcMissingGtv",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "dstMissingGtv",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "flowMissingGtvActivePolicyApplied",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "flowMissingGtvSimulatedPolicyApplied",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "flowMissingGtvMissingPolicy",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "_type": "L4Metrics",
+    "_provenance": "complete field list from the 'Nested types' section of input/LIVE-ZEROTRUSTMETRICS-SCHEMA.md (live 26.7 introspection, 2026-08-05). Field names only; no type kinds, so leaf types are left unresolved on purpose.",
+    "data": {
+      "__type": {
+        "name": "L4Metrics",
+        "fields": [
+          {
+            "name": "avgAllowedPorts",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "avgAllowedTcp",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "avgAllowedTcpWellKnown",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "avgAllowedTcpRegistered",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "avgAllowedTcpDynamic",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "avgAllowedUdp",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "avgAllowedUdpWellKnown",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "avgAllowedUdpRegistered",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "avgAllowedUdpDynamic",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "avgIcmp",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "_type": "ThreatVectorMetrics",
+    "_provenance": "complete field list from the 'Nested types' section of input/LIVE-ZEROTRUSTMETRICS-SCHEMA.md (live 26.7 introspection, 2026-08-05). Field names only; no type kinds, so leaf types are left unresolved on purpose.",
+    "data": {
+      "__type": {
+        "name": "ThreatVectorMetrics",
+        "fields": [
+          {
+            "name": "portExposure",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "threatVectors",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "_type": "PolicyCoverage",
+    "_provenance": "complete field list from the 'Nested types' section of input/LIVE-ZEROTRUSTMETRICS-SCHEMA.md (live 26.7 introspection, 2026-08-05). Field names only; no type kinds, so leaf types are left unresolved on purpose.",
+    "data": {
+      "__type": {
+        "name": "PolicyCoverage",
+        "fields": [
+          {
+            "name": "dateTime",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "policySetId",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "policySetName",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "policyGroupId",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "policyGroupName",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          },
+          {
+            "name": "metrics",
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "ofType": {}
+            }
+          }
+        ]
+      }
+    }
+  }
+]
