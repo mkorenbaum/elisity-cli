@@ -277,13 +277,17 @@ def cmd_create_suggestion(ctx, body_data, body_file, cmd_fmt, cmd_query):
 @group.command("reset-suggestions-to-default")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
-def cmd_reset_suggestions_to_default(ctx, cmd_fmt, cmd_query):
+def cmd_reset_suggestions_to_default(ctx, cmd_fmt, cmd_query, confirm):
     """Delete and Create all default suggestions"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
+    if not confirm:
+        click.echo("Use --confirm to execute this destructive operation.", err=True)
+        raise SystemExit(1)
     endpoint = f"/api/policy/v1/insights/policy-groups/reset-to-default"
     params = None
     client = ctx.ensure_client()
@@ -299,13 +303,17 @@ def cmd_reset_suggestions_to_default(ctx, cmd_fmt, cmd_query):
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
-def cmd_recreate_suggestions(ctx, body_data, body_file, cmd_fmt, cmd_query):
+def cmd_recreate_suggestions(ctx, body_data, body_file, cmd_fmt, cmd_query, confirm):
     """Delete and Create all suggestions"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
+    if not confirm:
+        click.echo("Use --confirm to execute this destructive operation.", err=True)
+        raise SystemExit(1)
     endpoint = f"/api/policy/v1/insights/policy-groups/recreate"
     params = None
     body = None
@@ -359,13 +367,17 @@ def cmd_post_policy_group_suggestions_preview(ctx, category, addbuiltin, body_da
 @group.command("reset-suggestions-to-default-post")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
-def cmd_reset_suggestions_to_default_post(ctx, cmd_fmt, cmd_query):
+def cmd_reset_suggestions_to_default_post(ctx, cmd_fmt, cmd_query, confirm):
     """Delete and Create all default Network Suggestions"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
+    if not confirm:
+        click.echo("Use --confirm to execute this destructive operation.", err=True)
+        raise SystemExit(1)
     endpoint = f"/api/policy/v1/insights/policy-groups/network/reset-to-default"
     params = None
     client = ctx.ensure_client()
@@ -589,13 +601,17 @@ def cmd_all_workflows_preview(ctx, body_data, body_file, cmd_fmt, cmd_query):
 @group.command("reset-policy-suggestions-to-default")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
-def cmd_reset_policy_suggestions_to_default(ctx, cmd_fmt, cmd_query):
+def cmd_reset_policy_suggestions_to_default(ctx, cmd_fmt, cmd_query, confirm):
     """Delete and Create all default Policy Suggestions"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
+    if not confirm:
+        click.echo("Use --confirm to execute this destructive operation.", err=True)
+        raise SystemExit(1)
     endpoint = f"/api/policy/v1/insights/policies/reset-to-default"
     params = None
     client = ctx.ensure_client()
@@ -611,13 +627,17 @@ def cmd_reset_policy_suggestions_to_default(ctx, cmd_fmt, cmd_query):
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
-def cmd_recreate_policy_suggestions(ctx, body_data, body_file, cmd_fmt, cmd_query):
+def cmd_recreate_policy_suggestions(ctx, body_data, body_file, cmd_fmt, cmd_query, confirm):
     """Delete and Create all Policy suggestions"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
+    if not confirm:
+        click.echo("Use --confirm to execute this destructive operation.", err=True)
+        raise SystemExit(1)
     endpoint = f"/api/policy/v1/insights/policies/recreate"
     params = None
     body = None

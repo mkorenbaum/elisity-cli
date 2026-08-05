@@ -254,13 +254,17 @@ def cmd_bulk_move(ctx, body_data, body_file, cmd_fmt, cmd_query):
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
-def cmd_bulk_delete(ctx, body_data, body_file, cmd_fmt, cmd_query):
+def cmd_bulk_delete(ctx, body_data, body_file, cmd_fmt, cmd_query, confirm):
     """Bulk delete labels"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
+    if not confirm:
+        click.echo("Use --confirm to execute this destructive operation.", err=True)
+        raise SystemExit(1)
     endpoint = f"/api/identity-graph/v1/labels/bulk-delete"
     params = None
     body = None

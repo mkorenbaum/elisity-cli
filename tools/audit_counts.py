@@ -23,16 +23,45 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from generate_commands import HANDCODED_GROUPS  # noqa: E402
+from generate_commands import (  # noqa: E402
+    DESTRUCTIVE_NAME_WORDS,
+    HANDCODED_GROUPS,
+    is_destructive_operation,
+)
 
 COMMANDS_DIR = REPO_ROOT / "src" / "elisity_cli" / "commands"
 MAIN_PY = REPO_ROOT / "src" / "elisity_cli" / "main.py"
 README = REPO_ROOT / "README.md"
 COMMAND_REFERENCE = REPO_ROOT / "docs" / "command-reference.md"
 
-# The confirmation guard the generator emits for every DELETE operation.
+# The confirmation guard the generator emits for every destructive operation.
 CONFIRM_MARKER = "Use --confirm"
-DELETE_MARKER = "client.delete("
+
+# Commands whose NAME reads destructive while their path does not classify as
+# destructive. Each is a deliberate human ruling, not an emergent property of
+# the matcher — an entry here is a statement that the operation destroys
+# nothing. Anything name-flagged and absent from this list is an invariant
+# failure, so a future `bulk-nuke-sites` on an unrecognised path cannot slip
+# through the gap between the name and the path.
+NON_DESTRUCTIVE_DESPITE_NAME = {
+    "policy force-sync":
+        "POST /api/policy/v1/state/resync — triggers a state resync; 'force' is "
+        "about the resync, nothing is deleted.",
+    "topology validate-virtual-edge-bulk-delete":
+        "POST .../virtual-edges/bulk/delete/validate — dry run. Reports what a "
+        "bulk delete WOULD do and changes nothing.",
+    "topology validate-virtual-edge-node-bulk-delete":
+        "POST .../virtual-edge-nodes/bulk/delete/validate — dry run, as above.",
+}
+
+# Hand-coded groups are classified by hand because they have no generated
+# endpoint line to re-derive from. Stated rather than assumed:
+#   reporting — 17 commands, all POSTs to the GraphQL endpoint that read
+#               metrics, plus `query`, a raw-body escape hatch. Nothing deletes.
+#               `query` is deliberately ungated: it forwards an operator-supplied
+#               GraphQL document, so the CLI cannot classify what it does.
+#   glossary  — 3 commands, local JSON lookups, no API call at all.
+HANDCODED_DESTRUCTIVE_COMMANDS = {}
 
 
 def split_command_blocks(source: str, decorator: str = "@group.command(") -> list:
@@ -44,29 +73,80 @@ def split_command_blocks(source: str, decorator: str = "@group.command(") -> lis
     return blocks
 
 
+VERB_RE = re.compile(r"client\.(get|get_ndjson|post|put|patch|delete)\(")
+ENDPOINT_RE = re.compile(r'endpoint = f?"([^"]+)"')
+
+
+def describe_command(block: str) -> tuple:
+    """(verb, path) as the SHIPPED command will actually call the API.
+
+    Re-derived from the generated source rather than from the spec, so the audit
+    measures the artifact users run. `get_ndjson` is a GET with streaming
+    decode.
+    """
+    verb = VERB_RE.search(block)
+    endpoint = ENDPOINT_RE.search(block)
+    verb = {"get_ndjson": "get"}.get(verb.group(1), verb.group(1)) if verb else ""
+    return verb.upper(), (endpoint.group(1) if endpoint else "")
+
+
+def name_looks_destructive(cmd_name: str) -> bool:
+    return bool(set(re.split(r"[^a-z]+", cmd_name)) & DESTRUCTIVE_NAME_WORDS)
+
+
 def audit_group_modules() -> dict:
-    """Count commands and delete-gate coverage per command-group module."""
+    """Count commands and confirm-gate coverage per command-group module.
+
+    The denominator is every DESTRUCTIVE command, not every DELETE command.
+    Keying it on the verb is what let this script certify "coverage 100.0%"
+    while ten destructive POST/PUT commands — four of them added by the 26.7
+    bump, including a bulk force-delete of VENs — shipped with no gate at all.
+    A coverage metric measured over a narrower set than the thing it claims to
+    cover is worse than no metric: it actively reports safety.
+    """
     groups = {}
     for path in sorted(COMMANDS_DIR.glob("*.py")):
         if path.name == "__init__.py":
             continue
         source = path.read_text()
         blocks = split_command_blocks(source)
-        deletes, gated, ungated = 0, 0, []
+        handcoded = path.stem in HANDCODED_GROUPS
+        destructive, gated, ungated, over_gated, unruled = 0, 0, [], [], []
+
         for cmd_name, block in blocks:
-            if DELETE_MARKER not in block:
-                continue
-            deletes += 1
-            if CONFIRM_MARKER in block:
-                gated += 1
+            qualified = f"{path.stem} {cmd_name}"
+            is_gated = CONFIRM_MARKER in block
+            if handcoded:
+                # No generated endpoint line to re-derive from; classified by
+                # the explicit table above so the coverage claim stays honest.
+                is_destructive = qualified in HANDCODED_DESTRUCTIVE_COMMANDS
             else:
-                ungated.append(f"{path.stem} {cmd_name}")
+                verb, endpoint = describe_command(block)
+                is_destructive = bool(verb) and is_destructive_operation(verb, endpoint)
+                if (
+                    not is_destructive
+                    and name_looks_destructive(cmd_name)
+                    and qualified not in NON_DESTRUCTIVE_DESPITE_NAME
+                ):
+                    unruled.append(f"{qualified} ({verb} {endpoint})")
+
+            if is_destructive:
+                destructive += 1
+                if is_gated:
+                    gated += 1
+                else:
+                    ungated.append(qualified)
+            elif is_gated:
+                over_gated.append(qualified)
+
         groups[path.stem] = {
             "commands": len(blocks),
-            "kind": "hand-coded" if path.stem in HANDCODED_GROUPS else "generated",
-            "deleteCommands": deletes,
-            "gatedDeletes": gated,
-            "ungatedDeletes": ungated,
+            "kind": "hand-coded" if handcoded else "generated",
+            "destructiveCommands": destructive,
+            "gatedDestructive": gated,
+            "ungatedDestructive": ungated,
+            "gatedButNotClassifiedDestructive": over_gated,
+            "nameDestructivePathNot": unruled,
         }
     return groups
 
@@ -101,9 +181,13 @@ def collect_counts() -> dict:
     group_total = generated + handcoded
     native_total = sum(native.values())
 
-    delete_commands = sum(g["deleteCommands"] for g in group_modules.values())
-    gated = sum(g["gatedDeletes"] for g in group_modules.values())
-    ungated = [name for g in group_modules.values() for name in g["ungatedDeletes"]]
+    destructive_commands = sum(g["destructiveCommands"] for g in group_modules.values())
+    gated = sum(g["gatedDestructive"] for g in group_modules.values())
+    ungated = [n for g in group_modules.values() for n in g["ungatedDestructive"]]
+    over_gated = [
+        n for g in group_modules.values() for n in g["gatedButNotClassifiedDestructive"]
+    ]
+    unruled = [n for g in group_modules.values() for n in g["nameDestructivePathNot"]]
 
     per_group = {name: g["commands"] for name, g in group_modules.items()}
     per_group.update(native)
@@ -121,11 +205,17 @@ def collect_counts() -> dict:
             "total": group_total + native_total,
             "groupCount": len(per_group),
         },
-        "deleteGate": {
-            "deleteCommands": delete_commands,
-            "gatedDeletes": gated,
-            "ungatedDeletes": sorted(ungated),
-            "coveragePercent": round(100.0 * gated / delete_commands, 2) if delete_commands else 100.0,
+        "confirmGate": {
+            "destructiveCommands": destructive_commands,
+            "gatedDestructive": gated,
+            "ungatedDestructive": sorted(ungated),
+            "gatedButNotClassifiedDestructive": sorted(over_gated),
+            "nameDestructivePathNot": sorted(unruled),
+            "ruledNonDestructiveDespiteName": sorted(NON_DESTRUCTIVE_DESPITE_NAME),
+            "coveragePercent": (
+                round(100.0 * gated / destructive_commands, 2)
+                if destructive_commands else 100.0
+            ),
         },
     }
 
@@ -273,12 +363,20 @@ def check_invariants(counts: dict) -> list:
     """Structural invariants of the CLI itself."""
     problems = []
 
-    gate = counts["deleteGate"]
-    if gate["ungatedDeletes"]:
+    gate = counts["confirmGate"]
+    if gate["ungatedDestructive"]:
         problems.append(
-            "delete gate: "
-            f"{len(gate['ungatedDeletes'])} DELETE command(s) missing --confirm: "
-            + ", ".join(gate["ungatedDeletes"])
+            "confirm gate: "
+            f"{len(gate['ungatedDestructive'])} destructive command(s) missing "
+            "--confirm: " + ", ".join(gate["ungatedDestructive"])
+        )
+    if gate["nameDestructivePathNot"]:
+        problems.append(
+            "confirm gate: "
+            f"{len(gate['nameDestructivePathNot'])} command(s) read destructive by "
+            "name but their path does not classify — rule on each in "
+            "NON_DESTRUCTIVE_DESPITE_NAME (or teach the path matcher): "
+            + ", ".join(gate["nameDestructivePathNot"])
         )
 
     reg = counts["registration"]
@@ -309,7 +407,7 @@ def check_invariants(counts: dict) -> list:
 
 
 def render(counts: dict, readme_results: list, problems: list) -> str:
-    t, gate = counts["totals"], counts["deleteGate"]
+    t, gate = counts["totals"], counts["confirmGate"]
     lines = [
         "Elisity CLI — command count audit",
         "=" * 60,
@@ -331,13 +429,21 @@ def render(counts: dict, readme_results: list, problems: list) -> str:
         f"  CLI-native auth/config   {t['cliNativeAuthConfig']:>4}",
         f"  TOTAL                    {t['total']:>4}  across {t['groupCount']} groups",
         "",
-        "Delete gate:",
-        f"  delete commands          {gate['deleteCommands']:>4}",
-        f"  gated with --confirm     {gate['gatedDeletes']:>4}",
+        "Confirm gate (denominator: every DESTRUCTIVE command, all verbs):",
+        f"  destructive commands     {gate['destructiveCommands']:>4}",
+        f"  gated with --confirm     {gate['gatedDestructive']:>4}",
         f"  coverage                 {gate['coveragePercent']:>6}%",
+        f"  ruled non-destructive    {len(gate['ruledNonDestructiveDespiteName']):>4}"
+        "  (destructive-sounding name, path says otherwise)",
     ]
-    if gate["ungatedDeletes"]:
-        lines.append("  UNGATED: " + ", ".join(gate["ungatedDeletes"]))
+    if gate["ungatedDestructive"]:
+        lines.append("  UNGATED: " + ", ".join(gate["ungatedDestructive"]))
+    if gate["nameDestructivePathNot"]:
+        lines.append("  UNRULED NAME/PATH MISMATCH: "
+                     + ", ".join(gate["nameDestructivePathNot"]))
+    if gate["gatedButNotClassifiedDestructive"]:
+        lines.append("  GATED BUT NOT CLASSIFIED DESTRUCTIVE: "
+                     + ", ".join(gate["gatedButNotClassifiedDestructive"]))
 
     if readme_results is not None:
         lines += ["", "Documentation cross-check:"]
@@ -387,7 +493,11 @@ def main(argv=None):
 
     if not args.json:
         # Keep --json output pure JSON on stdout so it can be piped.
-        print("PASS: source counts and documentation agree; delete gate at 100%.")
+        print(
+            "PASS: source counts and documentation agree; confirm gate at "
+            f"{counts['confirmGate']['coveragePercent']}% over "
+            f"{counts['confirmGate']['destructiveCommands']} destructive commands."
+        )
     return 0
 
 

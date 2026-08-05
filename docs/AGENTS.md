@@ -247,11 +247,41 @@ directly. See [user-guide.md](user-guide.md) for the full breakdown.
 The flag for JSON request bodies is `--body` (or `--body-file <path>`). Older
 help text shows `--data` — that's stale; the CLI rejects it.
 
-### `--confirm` required for DELETE
+### `--confirm` required for destructive commands
 
-Every delete and bulk-delete command requires `--confirm` on the command line.
-Without it, the CLI refuses to send the request. Do not work around this — it
-is intentional friction.
+Every command the CLI classifies as destructive requires `--confirm` on the
+command line. Without it, the CLI refuses to send the request — it prints
+`Use --confirm to execute this destructive operation.` and exits 1, having made
+no HTTP call. Do not work around this; it is intentional friction.
+
+The classification is made from the API path, not the HTTP verb and not the
+command name:
+
+- **every** `DELETE` — 52 commands, all gated;
+- **plus** any verb whose path names a destructive action — a `delete`,
+  `bulk-delete`, `force-delete`, `force`, `purge`, `decommission`, `detach`,
+  `reset-to-default` or `recreate` segment. That is 15 more commands, mostly
+  POST bulk deletes (`topology bulk-force-delete-ve-ns`,
+  `topology bulk-delete-ve-ns`, `policy bulk-delete`, …), one PUT
+  (`topology decommission-virtual-edge-node`), and the Insights
+  reset/recreate commands, whose own CCC summary is "Delete and Create all
+  suggestions".
+
+67 destructive commands, 67 gated. `python3 tools/audit_counts.py` recomputes
+that from the shipped source and fails the build if it slips.
+
+**Two things this does NOT cover, so do not read `--confirm` as the whole
+safety story:**
+
+1. **A dry-run path is not gated.** `topology validate-virtual-edge-bulk-delete`
+   and `topology validate-virtual-edge-node-bulk-delete` POST to
+   `.../bulk/delete/validate` and only report what a delete would do. They are
+   read-only by design.
+2. **State-changing is broader than destructive.** `create-*`, `update-*`,
+   `change-status`, `enable-maintenance` and everything else in the
+   [Destructive operations](#destructive-operations) P0 list changes live tenant
+   state and takes **no** `--confirm`. The absence of the flag is not permission
+   to run them unattended — the human-approval rule below is what governs those.
 
 ### Global flags go BEFORE the group
 
@@ -299,7 +329,13 @@ The following verbs change live tenant state. Treat each as a P0 confirmation
 gate: report the exact command to the human, get explicit go/no-go, then run.
 
 - `delete-*`, `bulk-*` (create/delete/move/update), `decommission-*`,
-  `force-delete-*` (deletes always require `--confirm`)
+  `force-delete-*` — every one of these that actually destroys something also
+  requires `--confirm`, including the POST bulk deletes
+  (`bulk-delete-site`, `bulk-delete-site-v2`, `bulk-delete-virtual-edges`,
+  `bulk-delete-ve-ns`, `bulk-force-delete-ve-ns`,
+  `bulk-delete-distribution-zone`, `policy bulk-delete`) and
+  `topology decommission-virtual-edge-node`. `bulk-*` commands that create,
+  move or update do not take `--confirm` — they still need human approval
 - `create-*`, `update-*`, `patch-*`, `replace-*`, `overwrite-*`, `rename-*`
 - `add-*`, `remove-*`, `move-*`, `reorder-*` — including
   `add-definition` / `remove-definition` on custom applications, and
@@ -312,7 +348,9 @@ gate: report the exact command to the human, get explicit go/no-go, then run.
 - `set-*` — `set-feature-flag-ig`, `set-logger-levels-bulk`,
   `set-distribution-zones`
 - `activate-workflow`, `recreate-policy-suggestions`,
-  `reset-suggestions-to-default`
+  `reset-suggestions-to-default` — the recreate/reset pair discards the existing
+  suggestion set ("Delete and Create all suggestions"), so both require
+  `--confirm` as well
 - `import-*` / `cancel-import`, `upload-*` (bulk VE/VEN JSON, AD agent logs)
 - `sync-*`, `refresh-*`, `force-sync`, `resync`, `re-initialize-*`,
   `discover-ec2workloads` — these trigger real work against live infrastructure

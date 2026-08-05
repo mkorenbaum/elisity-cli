@@ -1291,4 +1291,7 @@ Mutating commands (`POST`, `PUT`, `PATCH`) accept:
 | `--body JSON` | Request body as inline JSON string |
 | `--body-file PATH` | Read request body from a JSON file |
 
-Destructive commands (`DELETE`) require `--confirm` to execute.
+Destructive commands require `--confirm` to execute. That is every `DELETE`, plus
+any verb whose API path names a destructive action — bulk deletes over POST,
+`decommission` over PUT, and the Insights `reset-to-default` / `recreate`
+commands. Dry-run paths (`.../bulk/delete/validate`) are deliberately not gated.

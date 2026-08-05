@@ -18,7 +18,7 @@ Generated from the **CCC 26.7** OpenAPI spec. See [What changed in CCC 26.7](#wh
 - **NDJSON support** — transparent parsing of newline-delimited JSON endpoints
 - **GraphQL reporting** — `reporting` group wraps the CCC dashboard's GraphQL queries (Zero Trust scores, site KPIs, threat vectors, traffic-by-PG/IP)
 - **UI-term glossary** — `glossary` group answers "what command runs the Zero Trust Score tile?" without guesswork
-- **Destructive-op safety** — DELETE commands require `--confirm`
+- **Destructive-op safety** — `--confirm` required for all 67 destructive commands, classified by API path rather than HTTP verb (every DELETE, plus POST bulk deletes, PUT decommission, Insights reset/recreate)
 - **Retry with backoff** — automatic retry on connection errors and timeouts
 
 ## Quick Start
@@ -268,8 +268,14 @@ suite (`tests/test_command_invariants.py`).
 Two invariants are enforced mechanically because a bulk regeneration is too large to
 review by eye:
 
-- **Delete gate** — every command issuing `client.delete()` requires `--confirm`.
-  Coverage is asserted at 100%; a regression names the offending commands.
+- **Confirm gate** — every DESTRUCTIVE command requires `--confirm`, not merely every
+  DELETE. The denominator is derived from the API path (`is_destructive_operation()` in
+  `generate_commands.py`, the single definition in the project) and re-derived from the
+  shipped source by the audit, so the gate and the metric cannot measure different sets.
+  Coverage is asserted at 100% over 67 commands; a regression names the offending
+  commands. A command whose *name* reads destructive while its path does not classify is
+  also a failure until a human rules on it in `NON_DESTRUCTIVE_DESPITE_NAME` — three
+  entries today, all dry-run or resync operations.
 - **Hand-coded survival** — the `reporting` (GraphQL) and `glossary` (CLI-native) groups
   are not in the OpenAPI spec. Regeneration never rewrites their modules and always
   keeps them registered in `COMMAND_GROUPS`; the generator aborts if a spec tag is ever

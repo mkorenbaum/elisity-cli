@@ -191,11 +191,17 @@ elisity devices get-devices-view --body-file request.json
 
 ### Destructive commands require confirmation
 
-Delete operations require `--confirm`:
+Destructive operations require `--confirm`. That is every `DELETE`, and also any
+command whose API path names a destructive action — the POST bulk deletes, the
+PUT `decommission`, and the Insights reset/recreate commands:
 
 ```bash
 elisity topology delete-site-v2 <site-id> --confirm
+elisity topology bulk-delete-ve-ns --body '{"ids":["..."]}' --confirm
 ```
+
+Without the flag the CLI prints `Use --confirm to execute this destructive
+operation.` and exits 1 without contacting the API.
 
 ---
 

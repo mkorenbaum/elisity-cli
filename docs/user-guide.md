@@ -124,9 +124,26 @@ Pagination is handled three different ways depending on the endpoint:
 endpoints (which stream newline-delimited JSON) are parsed transparently and rendered
 the same as any other response.
 
-Destructive operations (delete, bulk-delete, decommission) require `--confirm` on the
-command line. Without it, the CLI refuses to send the request. This is intentional
-friction.
+Destructive operations require `--confirm` on the command line. Without it the CLI
+refuses to send the request — it prints
+`Use --confirm to execute this destructive operation.` and exits 1 without making
+an HTTP call. This is intentional friction.
+
+Destructive is decided by the API path, not the HTTP verb: every `DELETE`, plus any
+verb whose path names a destructive action (`delete`, `bulk-delete`, `force-delete`,
+`force`, `purge`, `decommission`, `detach`, `reset-to-default`, `recreate`). So the
+POST bulk deletes — `topology bulk-delete-ve-ns`, `topology bulk-force-delete-ve-ns`,
+`policy bulk-delete` and the rest — are gated too, and so is the PUT
+`topology decommission-virtual-edge-node`. 67 commands in total.
+
+The dry-run siblings are deliberately **not** gated:
+`topology validate-virtual-edge-bulk-delete` POSTs to `.../bulk/delete/validate` and
+only reports what a delete would do.
+
+`--confirm` is not the same thing as "safe to run unattended". Plenty of commands
+change live tenant state without destroying anything — `create-*`, `update-*`,
+`policy change-status`, `topology enable-maintenance` — and none of those take
+`--confirm`.
 
 ---
 
@@ -1289,7 +1306,8 @@ Write commands need a little more thought:
   'Boston' already exists`). Handle that as success in idempotent scripts.
 - Update endpoints (`set-*`, `update-*`) are idempotent when the body matches the
   desired state.
-- Delete endpoints require `--confirm` and return an error if the target doesn't
+- Destructive endpoints require `--confirm` — every DELETE, and also the POST bulk
+  deletes and the PUT `decommission`. They return an error if the target doesn't
   exist. Wrap delete calls with a "exists?" check.
 
 A safe `delete-if-exists` pattern:

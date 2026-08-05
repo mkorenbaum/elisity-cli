@@ -273,8 +273,74 @@ def python_safe(name: str) -> str:
 # also means losing the --confirm gate. See _unique_name().
 RESERVED_DESTS = frozenset({"ctx", "cmd_fmt", "cmd_query", "body_data", "body_file"})
 RESERVED_FLAGS = frozenset({"--format", "-f", "--query", "-q", "--body", "--body-file"})
-DELETE_GUARD_DEST = "confirm"
-DELETE_GUARD_FLAGS = frozenset({"--confirm", "--no-confirm"})
+CONFIRM_GUARD_DEST = "confirm"
+CONFIRM_GUARD_FLAGS = frozenset({"--confirm", "--no-confirm"})
+
+# --------------------------------------------------------------------------
+# Which operations need --confirm
+# --------------------------------------------------------------------------
+# The gate used to key on the DELETE verb. That is the wrong axis: CCC deletes
+# things over POST and PUT too, so `topology bulk-force-delete-ve-ns` (POST, many
+# VENs) shipped ungated while `topology force-delete-ven` (DELETE, one VEN) was
+# gated — and both docs told agents that every delete and bulk-delete requires
+# --confirm. Gate on what the operation DOES.
+#
+# The path is the source of truth, not the command name: command names come from
+# the spec's operationId and CCC renames them across releases, while the path
+# names the action the server performs.
+#
+# Whole-segment matching, never substring. `/devices/purge-settings` configures
+# the offline-purge policy and destroys nothing; a substring match on "purge"
+# would gate it.
+DESTRUCTIVE_PATH_SEGMENTS = frozenset({
+    "delete",             # .../bulk/delete
+    "bulk-delete",        # .../labels/bulk-delete
+    "force-delete",       # .../virtual-edge-nodes/bulk/force-delete
+    "force",              # .../virtual-edge-nodes/{id}/force  (force-delete a VEN)
+    "purge",              # .../devices/bulk/purge
+    "decommission",       # .../virtual-edge-nodes/{id}/decommission
+    "detach",             # .../devices/{id}/detach
+    "reset-to-default",   # .../insights/policy-groups/reset-to-default
+    "recreate",           # .../insights/policy-groups/recreate — CCC's own summary
+                          # for these two is "Delete and Create all suggestions"
+})
+
+# A dry-run sibling of a destructive path. `/virtual-edges/bulk/delete/validate`
+# carries the `delete` segment but only reports what a delete WOULD do, so gating
+# it would be friction with no safety value — and, worse, would teach users that
+# --confirm on these paths is meaningless.
+DRY_RUN_PATH_SEGMENTS = frozenset({"validate"})
+
+
+def is_destructive_operation(method: str, path: str) -> bool:
+    """Does this operation need the --confirm gate?
+
+    True for every DELETE (kept as a floor — the README, AGENTS.md and the
+    user guide have always promised it, and narrowing it would be a silent
+    behaviour regression), plus any verb whose path names a destructive action.
+
+    This predicate is the single definition of "destructive" in the project.
+    `tools/audit_counts.py` imports it to build its coverage denominator rather
+    than re-deriving the rule, because a coverage metric measured against a
+    different set than the gate enforces is how "100% covered" stayed true while
+    ten destructive commands sat ungated.
+    """
+    if method.upper() == "DELETE":
+        return True
+    segments = {s for s in path.split("/") if s and not s.startswith("{")}
+    if segments & DRY_RUN_PATH_SEGMENTS:
+        return False
+    return bool(segments & DESTRUCTIVE_PATH_SEGMENTS)
+
+
+# Words that make a COMMAND NAME look destructive. Not used to decide the gate —
+# the path decides that — but used by tools/audit_counts.py as a watchdog: any
+# command whose name matches while its path does not classify is surfaced for a
+# human to rule on, so the two can never drift apart silently.
+DESTRUCTIVE_NAME_WORDS = frozenset({
+    "delete", "purge", "decommission", "detach", "destroy", "remove", "wipe",
+    "erase", "revoke", "terminate", "force",
+})
 
 
 def _unique_name(base: str, used: set, suffix: str = "") -> str:
@@ -293,7 +359,8 @@ def _unique_name(base: str, used: set, suffix: str = "") -> str:
     return candidate
 
 
-def resolve_parameter_names(method: str, path_params: list, query_params: list) -> tuple:
+def resolve_parameter_names(method: str, path_params: list, query_params: list,
+                            path: str = "") -> tuple:
     """Assign a collision-free Click flag + Python dest to every parameter.
 
     The wire name (what goes into the URL path or query string) is never
@@ -302,13 +369,15 @@ def resolve_parameter_names(method: str, path_params: list, query_params: list) 
 
     The request-body flags are reserved unconditionally, not just when the
     operation has a body — a parameter named `body` on a body-less operation is
-    harmless to rename and keeps the rule simple.
+    harmless to rename and keeps the rule simple. `path` is needed because the
+    --confirm guard is now emitted for destructive non-DELETE operations too, so
+    the identifier it occupies must be reserved for exactly the same set.
     """
     used_dests = set(RESERVED_DESTS)
     used_flags = set(RESERVED_FLAGS)
-    if method.upper() == "DELETE":
-        used_dests.add(DELETE_GUARD_DEST)
-        used_flags |= DELETE_GUARD_FLAGS
+    if is_destructive_operation(method, path):
+        used_dests.add(CONFIRM_GUARD_DEST)
+        used_flags |= CONFIRM_GUARD_FLAGS
 
     resolved_path = []
     for pname, ptype, pdesc in path_params:
@@ -462,7 +531,8 @@ def generate_command(method: str, path: str, op: dict, cmd_name: str) -> str:
     func_name = python_safe(cmd_name)
 
     # Collision-free Click flags + Python identifiers. Wire names are unchanged.
-    rpath, rquery = resolve_parameter_names(method, path_params, query_params)
+    rpath, rquery = resolve_parameter_names(method, path_params, query_params, path)
+    destructive = is_destructive_operation(method, path)
 
     lines = []
 
@@ -503,8 +573,9 @@ def generate_command(method: str, path: str, op: dict, cmd_name: str) -> str:
     lines.append('@click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)')
     lines.append('@click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)')
 
-    # Confirm for destructive ops
-    if method.upper() in ("DELETE",):
+    # Confirm for destructive ops — every DELETE, plus any verb whose path names
+    # a destructive action (bulk deletes over POST, decommission over PUT, ...).
+    if destructive:
         lines.append('@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")')
 
     lines.append("@pass_context")
@@ -516,7 +587,7 @@ def generate_command(method: str, path: str, op: dict, cmd_name: str) -> str:
     if has_body:
         sig_parts.extend(["body_data", "body_file"])
     sig_parts.extend(["cmd_fmt", "cmd_query"])
-    if method.upper() == "DELETE":
+    if destructive:
         sig_parts.append("confirm")
 
     lines.append(f'def cmd_{func_name}({", ".join(sig_parts)}):')
@@ -526,8 +597,8 @@ def generate_command(method: str, path: str, op: dict, cmd_name: str) -> str:
     lines.append('    if cmd_query:')
     lines.append('        ctx.query = cmd_query')
 
-    # Delete confirmation
-    if method.upper() == "DELETE":
+    # Destructive-operation confirmation
+    if destructive:
         lines.append('    if not confirm:')
         lines.append('        click.echo("Use --confirm to execute this destructive operation.", err=True)')
         lines.append('        raise SystemExit(1)')

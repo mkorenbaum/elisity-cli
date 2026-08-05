@@ -540,13 +540,17 @@ def cmd_update_ports_configuration(ctx, id, type_param, body_data, body_file, cm
 @click.argument("id")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
-def cmd_decommission_virtual_edge_node(ctx, id, cmd_fmt, cmd_query):
+def cmd_decommission_virtual_edge_node(ctx, id, cmd_fmt, cmd_query, confirm):
     """Trigger decommission of a registered virtual edge node"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
+    if not confirm:
+        click.echo("Use --confirm to execute this destructive operation.", err=True)
+        raise SystemExit(1)
     endpoint = f"/api/topology/v1/virtual-edge-nodes/{id}/decommission"
     params = None
     client = ctx.ensure_client()
@@ -1756,13 +1760,17 @@ def cmd_bulk_create_site_labels(ctx, body_data, body_file, cmd_fmt, cmd_query):
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
-def cmd_bulk_delete_site_v2(ctx, body_data, body_file, cmd_fmt, cmd_query):
+def cmd_bulk_delete_site_v2(ctx, body_data, body_file, cmd_fmt, cmd_query, confirm):
     """Bulk delete site labels"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
+    if not confirm:
+        click.echo("Use --confirm to execute this destructive operation.", err=True)
+        raise SystemExit(1)
     endpoint = f"/api/topology/v2/sites/bulk/delete"
     params = None
     body = None
@@ -2311,13 +2319,17 @@ def cmd_virtual_edge_bulk_upload(ctx, virtualEdgeType, hostingMode, virtualEdgeG
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
-def cmd_bulk_delete_virtual_edges(ctx, body_data, body_file, cmd_fmt, cmd_query):
+def cmd_bulk_delete_virtual_edges(ctx, body_data, body_file, cmd_fmt, cmd_query, confirm):
     """Bulk delete Virtual Edges"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
+    if not confirm:
+        click.echo("Use --confirm to execute this destructive operation.", err=True)
+        raise SystemExit(1)
     endpoint = f"/api/topology/v1/virtual-edges/bulk/delete"
     params = None
     body = None
@@ -2883,13 +2895,17 @@ def cmd_bulk_recommission_ve_ns(ctx, body_data, body_file, cmd_fmt, cmd_query):
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
-def cmd_bulk_force_delete_ve_ns(ctx, body_data, body_file, cmd_fmt, cmd_query):
+def cmd_bulk_force_delete_ve_ns(ctx, body_data, body_file, cmd_fmt, cmd_query, confirm):
     """Bulk force delete Virtual Edge Nodes"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
+    if not confirm:
+        click.echo("Use --confirm to execute this destructive operation.", err=True)
+        raise SystemExit(1)
     endpoint = f"/api/topology/v1/virtual-edge-nodes/bulk/force-delete"
     params = None
     body = None
@@ -2913,13 +2929,17 @@ def cmd_bulk_force_delete_ve_ns(ctx, body_data, body_file, cmd_fmt, cmd_query):
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
-def cmd_bulk_delete_ve_ns(ctx, body_data, body_file, cmd_fmt, cmd_query):
+def cmd_bulk_delete_ve_ns(ctx, body_data, body_file, cmd_fmt, cmd_query, confirm):
     """Bulk delete Virtual Edge Nodes"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
+    if not confirm:
+        click.echo("Use --confirm to execute this destructive operation.", err=True)
+        raise SystemExit(1)
     endpoint = f"/api/topology/v1/virtual-edge-nodes/bulk/delete"
     params = None
     body = None
@@ -3326,13 +3346,17 @@ def cmd_delete_target_site(ctx, type_param, cmd_fmt, cmd_query, confirm):
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
-def cmd_bulk_delete_site(ctx, body_data, body_file, cmd_fmt, cmd_query):
+def cmd_bulk_delete_site(ctx, body_data, body_file, cmd_fmt, cmd_query, confirm):
     """Bulk delete site labels."""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
+    if not confirm:
+        click.echo("Use --confirm to execute this destructive operation.", err=True)
+        raise SystemExit(1)
     endpoint = f"/api/topology/v1/sites/bulk/delete"
     params = None
     body = None
@@ -3540,13 +3564,17 @@ def cmd_delete_independent_control_mappings(ctx, body_data, body_file, cmd_fmt, 
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
+@click.option("--confirm/--no-confirm", default=False, help="Confirm destructive operation")
 @pass_context
-def cmd_bulk_delete_distribution_zone(ctx, body_data, body_file, cmd_fmt, cmd_query):
+def cmd_bulk_delete_distribution_zone(ctx, body_data, body_file, cmd_fmt, cmd_query, confirm):
     """Bulk delete Distribution Zones"""
     if cmd_fmt:
         ctx.format = cmd_fmt
     if cmd_query:
         ctx.query = cmd_query
+    if not confirm:
+        click.echo("Use --confirm to execute this destructive operation.", err=True)
+        raise SystemExit(1)
     endpoint = f"/api/topology/v1/distribution-zones/bulk/delete"
     params = None
     body = None

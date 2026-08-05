@@ -30,6 +30,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from generate_commands import (  # noqa: E402
     HANDCODED_GROUPS,
     build_groups,
+    is_destructive_operation,
     generate_module,
     merge_path_templates,
     render_init_module,
@@ -53,25 +54,122 @@ def counts():
 
 
 # --------------------------------------------------------------------------
-# 1. Delete gate — the security invariant
+# 1. Confirm gate — the security invariant
 # --------------------------------------------------------------------------
 
 
-class TestDeleteGate:
-    def test_every_delete_command_requires_confirm(self, counts):
-        """100% --confirm coverage. Names the offenders when it slips."""
-        gate = counts["deleteGate"]
-        assert gate["ungatedDeletes"] == [], (
-            f"{len(gate['ungatedDeletes'])} DELETE command(s) can run without "
-            f"--confirm: {', '.join(gate['ungatedDeletes'])}. "
-            "Every command issuing client.delete() must be gated — fix "
-            "generate_commands.py, not the generated module."
+class TestConfirmGate:
+    """The gate keys on DESTRUCTIVENESS, not on the DELETE verb.
+
+    It used to key on the verb, and the audit measured its coverage with the
+    same verb-shaped denominator — so `tools/audit_counts.py` certified
+    "coverage 100.0%" while ten destructive POST/PUT commands ran ungated, four
+    of them added by the 26.7 bump. `topology bulk-force-delete-ve-ns` (POST,
+    many VENs) was ungated while `topology force-delete-ven` (DELETE, one VEN)
+    was gated, and both docs told agents every delete required --confirm.
+
+    Widening the gate without widening the denominator would have reproduced
+    exactly that bug one layer out, so these tests pin BOTH: the gate covers
+    every destructive command, and the denominator is derived from the same
+    single predicate the generator emits from.
+    """
+
+    def test_every_destructive_command_requires_confirm(self, counts):
+        gate = counts["confirmGate"]
+        assert gate["ungatedDestructive"] == [], (
+            f"{len(gate['ungatedDestructive'])} destructive command(s) can run "
+            f"without --confirm: {', '.join(gate['ungatedDestructive'])}. "
+            "Fix generate_commands.py, not the generated module."
         )
         assert gate["coveragePercent"] == 100.0
 
-    def test_delete_commands_actually_exist(self, counts):
+    def test_denominator_is_wider_than_the_delete_verb(self, counts):
+        """The number that matters: destructive commands, not DELETEs.
+
+        52 DELETEs was the old denominator. If this ever equals the DELETE count
+        again, the gate has silently narrowed back to the verb.
+        """
+        gate = counts["confirmGate"]
+        deletes = sum(
+            1
+            for module in COMMANDS_DIR.glob("*.py")
+            if module.name != "__init__.py"
+            for block in module.read_text().split("@group.command(")[1:]
+            if "client.delete(" in block
+        )
+        assert deletes == 52, deletes
+        assert gate["destructiveCommands"] == 67, gate["destructiveCommands"]
+        assert gate["destructiveCommands"] > deletes
+
+    def test_the_non_delete_destructive_commands_are_named(self, counts):
+        """Pin the 15 the verb-shaped gate missed, so a silent loss fails here."""
+        gated_non_delete = set()
+        for module in sorted(COMMANDS_DIR.glob("*.py")):
+            if module.name == "__init__.py":
+                continue
+            for block in module.read_text().split("@group.command(")[1:]:
+                name = block.split('"')[1]
+                if "Use --confirm" in block and "client.delete(" not in block:
+                    gated_non_delete.add(f"{module.stem} {name}")
+        assert gated_non_delete == {
+            "devices detach",
+            "devices detach-by-mac",
+            "insights recreate-policy-suggestions",
+            "insights recreate-suggestions",
+            "insights reset-policy-suggestions-to-default",
+            "insights reset-suggestions-to-default",
+            "insights reset-suggestions-to-default-post",
+            "policy bulk-delete",
+            "topology bulk-delete-distribution-zone",
+            "topology bulk-delete-site",
+            "topology bulk-delete-site-v2",
+            "topology bulk-delete-ve-ns",
+            "topology bulk-delete-virtual-edges",
+            "topology bulk-force-delete-ve-ns",
+            "topology decommission-virtual-edge-node",
+        }
+
+    def test_destructive_commands_actually_exist(self, counts):
         """Guards against the audit trivially passing on an empty set."""
-        assert counts["deleteGate"]["deleteCommands"] > 0
+        assert counts["confirmGate"]["destructiveCommands"] > 0
+
+    def test_dry_run_siblings_are_not_gated(self, counts):
+        """`.../bulk/delete/validate` reports what a delete would do.
+
+        Gating it would be friction with no safety value, and would teach users
+        that --confirm on these paths means nothing.
+        """
+        assert not is_destructive_operation(
+            "POST", "/api/topology/v1/virtual-edges/bulk/delete/validate"
+        )
+        assert is_destructive_operation(
+            "POST", "/api/topology/v1/virtual-edges/bulk/delete"
+        )
+        assert counts["confirmGate"]["gatedButNotClassifiedDestructive"] == []
+
+    def test_whole_segment_matching_not_substring(self):
+        """`/devices/purge-settings` configures the purge policy; it purges nothing."""
+        assert not is_destructive_operation(
+            "PUT", "/api/identity-graph/v2/devices/purge-settings"
+        )
+        assert is_destructive_operation(
+            "DELETE", "/api/identity-graph/v1/devices/bulk/purge"
+        )
+
+    def test_every_destructive_sounding_name_has_been_ruled_on(self, counts):
+        """The denominator's own watchdog.
+
+        A command whose NAME reads destructive while its PATH does not classify
+        is the gap the path matcher cannot see by itself. Each one must be an
+        explicit human ruling, not an emergent property — so an unruled
+        `bulk-nuke-sites` on an unrecognised path fails the build.
+        """
+        assert counts["confirmGate"]["nameDestructivePathNot"] == []
+        assert set(counts["confirmGate"]["ruledNonDestructiveDespiteName"]) == {
+            "policy force-sync",
+            "topology validate-virtual-edge-bulk-delete",
+            "topology validate-virtual-edge-node-bulk-delete",
+        }
 
     def test_generated_delete_command_is_gated(self):
         """Regeneration itself must emit the guard, not just today's tree."""
@@ -97,8 +195,42 @@ class TestDeleteGate:
         assert "Use --confirm to execute this destructive operation." in module
         assert "client.delete(" in module
 
+    @pytest.mark.parametrize("path", [
+        "/api/topology/v1/virtual-edge-nodes/bulk/force-delete",
+        "/api/topology/v1/sites/bulk/delete",
+        "/api/identity-graph/v1/labels/bulk-delete",
+        "/api/identity-graph/v1/devices/{id}/detach",
+        "/api/policy/v1/insights/policy-groups/reset-to-default",
+        "/api/policy/v1/insights/policy-groups/recreate",
+    ])
+    def test_generated_destructive_post_is_gated(self, path):
+        """A POST that destroys must be gated exactly like the DELETE would be."""
+        spec = {"paths": {path: {"post": {
+            "tags": ["site-controller"], "operationId": "doTheThing",
+            "parameters": [
+                {"name": p.strip("{}"), "in": "path", "required": True,
+                 "schema": {"type": "string"}}
+                for p in path.split("/") if p.startswith("{")
+            ],
+            "responses": {"200": {}},
+        }}}}
+        groups, _ = build_groups(spec)
+        module = generate_module("topology", groups["topology"])
+
+        assert '@click.option("--confirm/--no-confirm"' in module, path
+        assert "Use --confirm to execute this destructive operation." in module, path
+        assert "client.post(" in module
+
+    def test_dry_run_post_is_not_gated(self):
+        spec = {"paths": {"/api/topology/v1/virtual-edges/bulk/delete/validate": {
+            "post": {"tags": ["site-controller"], "operationId": "validateBulkDelete",
+                     "responses": {"200": {}}}}}}
+        groups, _ = build_groups(spec)
+        module = generate_module("topology", groups["topology"])
+        assert "--confirm" not in module
+
     def test_freshly_generated_module_passes_the_gate_scan(self, tmp_path):
-        """The audit's own scan must find zero ungated deletes in new output."""
+        """The audit's own scan must find zero ungated destructives in new output."""
         spec = {
             "paths": {
                 f"/api/topology/v2/thing{i}/{{id}}": {
@@ -132,6 +264,49 @@ class TestDeleteGate:
 
         assert result.exit_code == 1
         assert "Use --confirm" in result.output
+
+    @pytest.mark.parametrize("argv", [
+        ["topology", "bulk-force-delete-ve-ns", "--body", '{"ids":["v1","v2"]}'],
+        ["topology", "bulk-delete-site", "--body", '{"ids":["s1"]}'],
+        ["topology", "decommission-virtual-edge-node", "ven-1"],
+        ["policy", "bulk-delete", "--body", '{"ids":["l1"]}'],
+        ["devices", "detach-by-mac", "--body", '{"mac":"00:11:22:33:44:55"}'],
+        ["insights", "recreate-suggestions"],
+    ])
+    def test_destructive_non_delete_refuses_with_no_http_call(self, argv):
+        """The newly gated commands refuse, and refuse BEFORE touching the API.
+
+        Leia's reproduction of the original defect was
+        `elisity topology bulk-delete-site --body '{"ids":[...]}'` -> exit 0 with
+        the POST actually sent. This is that reproduction, inverted.
+        """
+        calls = []
+
+        class RecordingClient:
+            def __getattr__(self, verb):
+                def call(*args, **kwargs):
+                    calls.append((verb, args, kwargs))
+                    return {}
+                return call
+
+        import elisity_cli.context as ctxmod
+        original = ctxmod.CliContext.ensure_client
+        ctxmod.CliContext.ensure_client = lambda self: RecordingClient()
+        try:
+            result = CliRunner().invoke(cli, argv)
+        finally:
+            ctxmod.CliContext.ensure_client = original
+
+        assert result.exit_code == 1, result.output
+        assert "Use --confirm" in result.output
+        assert calls == [], f"HTTP call made despite the gate: {calls}"
+
+    def test_confirm_flag_is_advertised_on_a_gated_post(self):
+        result = CliRunner().invoke(
+            cli, ["topology", "bulk-force-delete-ve-ns", "--help"]
+        )
+        assert result.exit_code == 0
+        assert "--confirm" in result.output
 
     def test_delete_help_advertises_confirm(self):
         runner = CliRunner()
