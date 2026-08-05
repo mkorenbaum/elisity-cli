@@ -290,7 +290,7 @@ The command set is generated from the CCC 26.7 OpenAPI spec, pulled from `insigh
 | Spec paths | 329 | 441 |
 | Spec operations | 436 | 583 |
 
-**192 commands added, 45 removed, 274 operations changed.**
+**190 commands added, 42 removed, 276 operations changed, 1 command name(s) repointed at a different endpoint.**
 
 ### GraphQL `reporting` changes (breaking)
 
@@ -374,7 +374,7 @@ goes missing, so the denominator cannot quietly shrink again.
 
 ### Removed commands (breaking)
 
-These 45 commands are gone because the operation was removed from the CCC spec. Any script invoking one will now fail with `No such command`.
+These 42 commands are gone because the operation was removed from the CCC spec. Any script invoking one will now fail with `No such command`. Commands whose underlying *path* moved are not listed here — they still exist, and are under [Changed command signatures](#changed-command-signatures).
 
 **AD Agent** (1)
 
@@ -424,10 +424,6 @@ These 45 commands are gone because the operation was removed from the CCC spec. 
 
 - `elisity ad process-dc-status` — Process DcStatus
 
-**Device - CRUD - v2** (1)
-
-- `elisity devices get-device-attribute-values-with-display-names` — Get trustAttributes values with displayNames
-
 **Device State Cache** (7)
 
 - `elisity flows dump-all` — Get complete history for all devices
@@ -444,15 +440,10 @@ These 45 commands are gone because the operation was removed from the CCC spec. 
 - `elisity policy get-enforcement-score-weight-settings` — Get settings for Policy Enforcement Score Weights
 - `elisity policy update-enforcement-score-weight-settings` — Save settings for Policy Enforcement Score Weights
 
-**Policy View** (1)
-
-- `elisity policy get-matrix` — Get matrix data
-
-**State Sync** (4)
+**State Sync** (3)
 
 - `elisity policy e-discovery-distribution-zones-state-sync` — Sends all Distribution Zones to eDiscovery.state-sync topic.
 - `elisity policy e-discovery-sites-state-sync` — Sends all Sites to eDiscovery.state-sync topic.
-- `elisity policy get-state` — Get paged state of all Policy related resources. This API is using marker to paginate results.
 - `elisity policy resync-state` — Sends details of all the VE and VENs to elisity.state-sync topic.
 
 **Time** (1)
@@ -464,9 +455,17 @@ These 45 commands are gone because the operation was removed from the CCC spec. 
 - `elisity flows get-all` — `GET /api/flows/v1/refresh-info`
 
 
+### Command names now pointing at a different endpoint (breaking, silent)
+
+1 command name(s) survived the bump while the operation behind them did not. The old operation was deleted from the spec and a different surviving operation inherited the name, so **an existing script does not fail — it calls a different endpoint.** These are worth checking before anything else in this changelog.
+
+- `elisity policy get-state` — was `GET /api/policy/v1/state` (deleted from the spec), now `GET /api/state-sync/v1/state`
+  - the surviving operation also changed: renamed from `get-state-get`
+
+
 ### Changed command signatures
 
-32 commands changed shape — a renamed command or a changed flag can break an existing script.
+34 commands changed shape — a renamed command or a changed flag can break an existing script.
 
 **`ad`**
 
@@ -480,7 +479,8 @@ These 45 commands are gone because the operation was removed from the CCC spec. 
 
 **`devices`**
 
-- `elisity devices export-devices` — new optional `--format` (string)
+- `elisity devices export-devices` — new optional `--format-param` (sends `format`) (string)
+- `elisity devices get-device-attribute-values-with-display-names` — path moved from `/api/identity-graph/v2/devices/attributes/trustAttributes/values` to `/api/identity-graph/v2/devices/attributes/{attributeName}/values`; new required `ATTRIBUTENAME` (sends `attributeName`) (string); new optional `--queryString` (string)
 - `elisity devices get-device-header-data` — renamed from `get-device-count`
 - `elisity devices get-device-header-data-get` — renamed from `get-device-header-data`
 - `elisity devices read-all-layer-instances-specification` — new optional `--includeWorkloads` (boolean)
@@ -489,14 +489,15 @@ These 45 commands are gone because the operation was removed from the CCC spec. 
 
 - `elisity flows flows-export` — `--offset` untyped (sent as string) -> integer; `--size` untyped (sent as string) -> integer
 - `elisity flows get-available-ports` — `--page` untyped (sent as string) -> integer; `--search` untyped (sent as string) -> string; `--size` untyped (sent as string) -> integer
-- `elisity flows get-pg-data` — `--format` untyped (sent as string) -> string; `--size` untyped (sent as string) -> integer
+- `elisity flows get-pg-data` — `--format-param` (sends `format`) untyped (sent as string) -> string; `--size` untyped (sent as string) -> integer
 - `elisity flows get-traffic-record` — `--offset` untyped (sent as string) -> integer; `--size` untyped (sent as string) -> integer
 - `elisity flows get-unique-values` — `--parameter` untyped (sent as string) -> string
-- `elisity flows search-noise-definitions` — `--query` untyped (sent as string) -> string
+- `elisity flows search-noise-definitions` — `--query-param` (sends `query`) untyped (sent as string) -> string
 
 **`policy`**
 
 - `elisity policy get-all-matching-criteria` — new optional `--targetType` (string)
+- `elisity policy get-matrix` — path moved from `/api/policy/v1/policy-views/{id}/matrix` to `/api/policy/v1/policy-views/{id}/matrix-legacy`
 - `elisity policy get-policy-groups-by-ids` — new required `--filters` (object)
 - `elisity policy get-policy-groups-json` — new optional `--targetType` (string)
 - `elisity policy get-state` — renamed from `get-state-get`
@@ -540,7 +541,7 @@ A further 118 operations changed only in their response schema or status codes. 
 
 ### Added commands
 
-192 new commands, grouped by CLI group.
+190 new commands, grouped by CLI group.
 
 #### `ad` (+16)
 
@@ -577,7 +578,7 @@ A further 118 operations changed only in their response schema or status codes. 
 - `validate-endpoint-for-connector` — Validate endpoint configuration for existing connector
 - `validate-endpoint-pre-creation` — Validate endpoint configuration before connector creation
 
-#### `devices` (+31)
+#### `devices` (+30)
 
 - `check` — Check ig-view-service sync state against the identity-graph DB (no dispatch)
 - `create-workload` — Create a static workload
@@ -590,7 +591,6 @@ A further 118 operations changed only in their response schema or status codes. 
 - `generate-trust-policy` — Generate trust policy JSON for the customer's IAM role
 - `get-all-settings` — Get all offline purge settings grouped by configuration
 - `get-auth-methods` — List available AWS authentication methods
-- `get-device-attribute-values-with-display-names` — Get values with displayNames for an attribute
 - `get-permissions-policy` — Get the IAM permissions policy for ElisityCloudDiscoveryPolicy
 - `get-specification` — Read workload attribute specification
 - `get-workload-aggregate` — Get workload aggregated counts
@@ -623,7 +623,7 @@ A further 118 operations changed only in their response schema or status codes. 
 
 - `get-suggestion-match-criteria` — Get Suggestion match criteria for a Policy Group
 
-#### `policy` (+72)
+#### `policy` (+71)
 
 - `add-definition` — `POST /api/flows/v1/applications/{id}/definitions`
 - `bulk-create` — Create several labels atomically (Add Another Label drawer)
@@ -662,7 +662,6 @@ A further 118 operations changed only in their response schema or status codes. 
 - `get-history-entries` — Search and filter policy history
 - `get-import-status` — Get status of an ongoing or completed label import
 - `get-matching-criteria-inheritance` — Get matching criteria inheritance chain for a policy group
-- `get-matrix` — Get matrix data
 - `get-matrix-with-search` — Get matrix data with search filters
 - `get-matrix-with-search-post` — Get matrix data with search filters
 - `get-policy-group-labels` — Search and filter Policy Group Labels
@@ -757,7 +756,6 @@ A further 118 operations changed only in their response schema or status codes. 
 - `validate-virtual-edge-node-bulk-delete` — Validate Virtual Edge Nodes before bulk delete
 - `validate-virtual-edge-nodes-bulk-json` — Validate VEN rows for bulk upload (V2, JSON streaming)
 - `validate-virtual-edges-bulk-json` — Validate VE rows for bulk upload (V2, JSON streaming)
-
 
 ## Documentation
 

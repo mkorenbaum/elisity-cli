@@ -21,12 +21,51 @@ a reader actually needs:
   a caller must send.
 * **Response-only** changes cannot break an invocation at all, so they are
   counted rather than enumerated.
+
+Reconciliation
+--------------
+`spec_diff.py` keys operations by `(METHOD, path)`, so a surviving operation
+whose PATH was renamed shows up as one removal plus one addition — while the
+command name, derived from the operationId, never changed. Rendered naively that
+produces a "Removed (breaking)" section listing commands that still exist, an
+"Added" section listing the same commands, and — worst of the three — it hides a
+genuine break: `/devices/attributes/trustAttributes/values` became
+`/devices/attributes/{attributeName}/values`, which made a positional argument
+MANDATORY. A reader looking for migration guidance finds the command under
+"Removed" and gets none.
+
+So the diff is reconciled by `(group, command)` before anything is rendered: an
+entry appearing on both sides is a path/operation move, is dropped from both
+lists, and is emitted under "Changed command signatures" with its real delta.
+
+A third shape needs its own section. `/api/policy/v1/state` really was deleted
+from the spec — but `/api/state-sync/v1/state` survived and, with the name it
+was competing with now free, took over `policy get-state`. So the command name
+still resolves and quietly calls a **different endpoint**. "Any script invoking
+one will now fail with `No such command`" is not merely wrong there; it is
+backwards. Nothing fails, and that is the problem.
+
+Flags, not spec names
+---------------------
+A parameter's CLI flag is not always `--<spec name>`: the generator renames it
+when it would collide with a flag the command already owns, and a path parameter
+is a positional argument with no flag at all. This module resolves the emitted
+name through the generator's own `resolve_parameter_names()`. Rendering the raw
+spec name advertised `--format` on `devices export-devices`, where `--format` is
+the CLI's own output-format override — `--format csv` was silently absorbed and
+never sent, at exit 0. The flag that works is `--format-param`.
 """
 
 import argparse
 import collections
 import json
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from generate_commands import resolve_parameter_names  # noqa: E402
+from tools.spec_diff import diff_parameters  # noqa: E402
 
 
 def _load(path: str) -> dict:
@@ -48,18 +87,79 @@ def _describe(op: dict) -> str:
 
 
 def _classify_change(entry: dict) -> str:
-    """Bucket a changed operation: signature | body | response-only."""
+    """Bucket a changed operation: signature | body | response-only.
+
+    Gaining or losing a request body is a SIGNATURE change, not a body change:
+    it adds or removes the `--body` / `--body-file` options, so a script that
+    passed `--body` to an operation that no longer takes one now fails on an
+    unknown option. Only a body that changed SHAPE leaves the flags alone.
+
+    Zero instances between 26.3 and 26.7, so nothing is re-filed today — but the
+    next bump runs the same tool.
+    """
     changes = entry.get("changes", {})
     if "parameters" in changes or "command" in changes or "group" in changes:
         return "signature"
-    if "requestBody" in changes:
+    if "path" in changes:
+        return "signature"
+    body = changes.get("requestBody")
+    if body:
+        if body.get("status") in ("added", "removed"):
+            return "signature"
         return "body"
     return "response-only"
+
+
+def _emitted_names(entry: dict) -> dict:
+    """{spec parameter name: how the CLI actually spells it}.
+
+    Resolved through the generator's own `resolve_parameter_names()`, in the
+    context of the whole operation, because a flag is renamed only when it
+    collides with one the command already owns. A path parameter has no flag —
+    it is a positional argument, rendered in the upper case Click shows in the
+    usage line.
+    """
+    parameters = entry.get("parametersAfter") or {}
+    method = entry.get("method", "GET")
+    path = entry.get("path", "")
+
+    path_params, query_params = [], []
+    for spec in parameters.values():
+        if spec.get("in") == "path":
+            path_params.append((spec["name"], spec.get("type") or "str", ""))
+        elif spec.get("in") == "query":
+            query_params.append((
+                spec["name"], spec.get("type") or "str",
+                bool(spec.get("required")), "", None,
+            ))
+
+    names = {}
+    if path_params or query_params:
+        resolved_path, resolved_query = resolve_parameter_names(
+            method, path_params, query_params, path
+        )
+        for spec in resolved_path:
+            names[spec["spec_name"]] = spec["dest"].upper()
+        for spec in resolved_query:
+            names[spec["spec_name"]] = spec["flag"]
+    return names
+
+
+def _render_param(name: str, spec: dict, emitted: dict) -> str:
+    """How a caller must actually spell this parameter on the command line."""
+    shown = emitted.get(name)
+    if shown:
+        note = "" if shown.lstrip("-") == name else f" (sends `{name}`)"
+        return f"`{shown}`{note}"
+    if (spec or {}).get("in") == "path":
+        return f"positional `{name.upper()}`"
+    return f"`--{name}`"
 
 
 def _signature_detail(entry: dict) -> str:
     """Human phrasing of what changed about a command's signature."""
     changes = entry.get("changes", {})
+    emitted = _emitted_names(entry)
     bits = []
 
     renamed = changes.get("command")
@@ -70,26 +170,107 @@ def _signature_detail(entry: dict) -> str:
     if moved:
         bits.append(f"moved from `{moved['from']}` to `{moved['to']}`")
 
+    path_move = changes.get("path")
+    if path_move:
+        bits.append(f"path moved from `{path_move['from']}` to `{path_move['to']}`")
+
+    body = changes.get("requestBody") or {}
+    if body.get("status") == "added":
+        bits.append("now takes a request body (`--body` / `--body-file`)")
+    elif body.get("status") == "removed":
+        bits.append("no longer takes a request body (`--body` / `--body-file` are gone)")
+
     params = changes.get("parameters") or {}
     for p in params.get("added", []):
         req = "required" if p.get("required") else "optional"
-        bits.append(f"new {req} `--{p['name']}` ({_type_label(p.get('type'))})")
+        bits.append(
+            f"new {req} {_render_param(p['name'], p, emitted)} "
+            f"({_type_label(p.get('type'))})"
+        )
     for p in params.get("removed", []):
-        bits.append(f"dropped `--{p['name']}`")
+        bits.append(f"dropped {_render_param(p['name'], p, emitted)}")
     for p in params.get("changed", []):
         # spec_diff emits {"parameter": "query:size", "from": {...}, "to": {...}}
         old, new = p.get("from") or {}, p.get("to") or {}
         name = new.get("name") or old.get("name") or p.get("parameter", "?")
+        shown = _render_param(name, new or old, emitted)
         if old.get("type") != new.get("type"):
             bits.append(
-                f"`--{name}` {_type_label(old.get('type'))} -> "
+                f"{shown} {_type_label(old.get('type'))} -> "
                 f"{_type_label(new.get('type'))}"
             )
         if old.get("required") != new.get("required"):
             became = "required" if new.get("required") else "optional"
-            bits.append(f"`--{name}` became {became}")
+            bits.append(f"{shown} became {became}")
 
     return "; ".join(bits) or "parameters changed"
+
+
+def reconcile(added: list, removed: list, changed: list) -> tuple:
+    """Fold removed-and-added-under-the-same-name pairs into signature changes.
+
+    spec_diff keys by (METHOD, path); the CLI keys by (group, command). An
+    operation whose path was renamed is one removal plus one addition to the
+    former and a plain signature change to the latter. Reconciling here rather
+    than in spec_diff keeps the diff a faithful record of the SPEC and makes
+    this module responsible for the CLI's view of it.
+    Returns (added, removed, changed, takenOver).
+    """
+    removed_by_command = {(op["group"], op["command"]): op for op in removed}
+    added_by_command = {(op["group"], op["command"]): op for op in added}
+    changed_by_command = {(op["group"], op["command"]): op for op in changed}
+    moved_keys = set(removed_by_command) & set(added_by_command)
+    # A removed operation whose command NAME is now carried by a surviving
+    # operation. The name still resolves; it calls something else.
+    taken_over = [
+        {"before": removed_by_command[key], "after": changed_by_command[key]}
+        for key in sorted(set(removed_by_command) & set(changed_by_command))
+    ]
+    if not moved_keys and not taken_over:
+        return added, removed, changed, []
+
+    taken_keys = {(t["before"]["group"], t["before"]["command"]) for t in taken_over}
+    still_added = [op for op in added if (op["group"], op["command"]) not in moved_keys]
+    still_removed = [
+        op for op in removed
+        if (op["group"], op["command"]) not in moved_keys | taken_keys
+    ]
+
+    moved = []
+    for key in sorted(moved_keys):
+        before, after = removed_by_command[key], added_by_command[key]
+        entry_changes = {}
+        if before["path"] != after["path"]:
+            entry_changes["path"] = {"from": before["path"], "to": after["path"]}
+        if before["method"] != after["method"]:
+            entry_changes["method"] = {"from": before["method"], "to": after["method"]}
+        params = diff_parameters(before["parameters"], after["parameters"])
+        if params:
+            entry_changes["parameters"] = params
+        body = _body_status(before.get("requestBody"), after.get("requestBody"))
+        if body:
+            entry_changes["requestBody"] = body
+        moved.append({
+            "method": after["method"],
+            "path": after["path"],
+            "command": after["command"],
+            "group": after["group"],
+            "parametersAfter": after["parameters"],
+            "changes": entry_changes or {"path": {"from": before["path"],
+                                                  "to": after["path"]}},
+        })
+
+    return still_added, still_removed, changed + moved, taken_over
+
+
+def _body_status(before, after):
+    if before == after:
+        return {}
+    if before is None and after is not None:
+        return {"status": "added"}
+    if before is not None and after is None:
+        return {"status": "removed"}
+    return {"status": "changed"}
 
 
 def _type_label(t) -> str:
@@ -107,9 +288,9 @@ def _type_label(t) -> str:
 
 def render(diff: dict, version: str, source: str, baseline: str) -> str:
     summary = diff.get("summary", {})
-    added = diff.get("added", [])
-    removed = diff.get("removed", [])
-    changed = diff.get("changed", [])
+    added, removed, changed, taken_over = reconcile(
+        diff.get("added", []), diff.get("removed", []), diff.get("changed", [])
+    )
 
     out = []
     w = out.append
@@ -130,7 +311,9 @@ def render(diff: dict, version: str, source: str, baseline: str) -> str:
     w("")
     w(
         f"**{len(added)} commands added, {len(removed)} removed, "
-        f"{len(changed)} operations changed.**"
+        f"{len(changed)} operations changed"
+        + (f", {len(taken_over)} command name(s) repointed at a different endpoint.**"
+           if taken_over else ".**")
     )
     w("")
 
@@ -143,7 +326,9 @@ def render(diff: dict, version: str, source: str, baseline: str) -> str:
         w(
             f"These {len(removed)} commands are gone because the operation was removed "
             "from the CCC spec. Any script invoking one will now fail with "
-            "`No such command`."
+            "`No such command`. Commands whose underlying *path* moved are not "
+            "listed here — they still exist, and are under "
+            "[Changed command signatures](#changed-command-signatures)."
         )
         w("")
         by_tag = collections.defaultdict(list)
@@ -156,6 +341,31 @@ def render(diff: dict, version: str, source: str, baseline: str) -> str:
             for op in ops:
                 w(f"- `elisity {op['group']} {op['command']}` — {_describe(op)}")
             w("")
+    w("")
+
+    # ---- Name takeovers: the quiet one, so it gets its own section. -----
+    if taken_over:
+        w("### Command names now pointing at a different endpoint (breaking, silent)")
+        w("")
+        w(
+            f"{len(taken_over)} command name(s) survived the bump while the operation "
+            "behind them did not. The old operation was deleted from the spec and a "
+            "different surviving operation inherited the name, so **an existing script "
+            "does not fail — it calls a different endpoint.** These are worth checking "
+            "before anything else in this changelog."
+        )
+        w("")
+        for entry in taken_over:
+            before, after = entry["before"], entry["after"]
+            w(
+                f"- `elisity {before['group']} {before['command']}` — was "
+                f"`{before['method']} {before['path']}` (deleted from the spec), now "
+                f"`{after['method']} {after['path']}`"
+            )
+            detail = _signature_detail(after)
+            if detail and detail != "parameters changed":
+                w(f"  - the surviving operation also changed: {detail}")
+        w("")
     w("")
 
     # ---- Renames / signature changes: also breaking. --------------------

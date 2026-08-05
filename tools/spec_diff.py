@@ -366,6 +366,12 @@ def diff_specs(old_spec: dict, new_spec: dict) -> dict:
                 "path": new_index[key]["path"],
                 "command": new_index[key]["command"],
                 "group": new_index[key]["group"],
+                # The FULL post-change parameter set, not just the delta.
+                # gen_changelog needs it to work out which CLI flag the
+                # generator actually emits for a parameter: a flag is renamed
+                # only when it collides with one the command already owns, so
+                # the answer depends on the operation's other parameters.
+                "parametersAfter": new_index[key]["parameters"],
                 "changes": delta,
             })
         else:

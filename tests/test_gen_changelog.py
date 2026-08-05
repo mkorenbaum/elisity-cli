@@ -8,6 +8,7 @@ implying a signature break, and a parameter whose type went missing.
 
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -228,6 +229,216 @@ class TestTotals:
         out = render(_diff(oldOperationCount=436, newOperationCount=583, oldPathCount=329, newPathCount=441))
         assert "| Spec operations | 436 | 583 |" in out
         assert "| Spec paths | 329 | 441 |" in out
+
+
+# --------------------------------------------------------------------------
+# Reconciliation — "Removed" must not list commands that still exist
+# --------------------------------------------------------------------------
+
+
+def _full_op(group, command, method, path, parameters=None, tags=None):
+    return {
+        "group": group, "command": command, "method": method, "path": path,
+        "tags": tags or ["Device - CRUD - v2"], "summary": "",
+        "parameters": parameters or {}, "requestBody": None, "responses": {},
+    }
+
+
+def _param(name, where="query", required=False, ptype="string"):
+    return {"name": name, "in": where, "required": required, "type": ptype}
+
+
+class TestReconciliation:
+    """A path rename is not a removal.
+
+    spec_diff keys by (METHOD, path), so renaming the path of a SURVIVING
+    operation reads as one removal plus one addition — while the command name,
+    derived from the operationId, never moved. Rendered naively, the changelog
+    listed 3 commands as "Removed (breaking) ... will now fail with No such
+    command" that all still exist, two of them also under "Added" in the same
+    document.
+    """
+
+    def _renamed_path_diff(self):
+        """The real 26.7 case: the path gained a mandatory {attributeName}."""
+        before = _full_op(
+            "devices", "get-device-attribute-values-with-display-names", "GET",
+            "/api/identity-graph/v2/devices/attributes/trustAttributes/values",
+        )
+        after = _full_op(
+            "devices", "get-device-attribute-values-with-display-names", "GET",
+            "/api/identity-graph/v2/devices/attributes/{attributeName}/values",
+            parameters={
+                "path:attributeName": _param("attributeName", "path", True),
+                "query:queryString": _param("queryString"),
+            },
+        )
+        return {"summary": {}, "added": [after], "removed": [before], "changed": []}
+
+    def test_a_renamed_path_is_not_reported_as_a_removal(self):
+        out = render(self._renamed_path_diff())
+        removed_section = out.split("### Removed commands")[1].split("###")[0]
+        assert "get-device-attribute-values-with-display-names" not in removed_section
+        added_section = out.split("### Added commands")[1]
+        assert "get-device-attribute-values-with-display-names" not in added_section
+
+    def test_the_hidden_breaking_change_is_now_stated(self):
+        """The worse half of the bug: the rename made an argument MANDATORY.
+
+        Filed under "Removed", the reader got no migration guidance at all for a
+        change that makes every existing invocation fail with
+        `Missing argument 'ATTRIBUTENAME'`.
+        """
+        out = render(self._renamed_path_diff())
+        sig = out.split("### Changed command signatures")[1].split("###")[0]
+        assert "get-device-attribute-values-with-display-names" in sig
+        assert "path moved from" in sig
+        assert "new required `ATTRIBUTENAME`" in sig
+        assert "new optional `--queryString`" in sig
+
+    def test_a_genuine_removal_still_appears(self):
+        """Reconciliation must not swallow real removals."""
+        diff = {"summary": {}, "added": [],
+                "removed": [_full_op("policy", "get-enforcement-score", "GET",
+                                "/api/policy/v1/enforcement-score")],
+                "changed": []}
+        out = render(diff)
+        removed_section = out.split("### Removed commands")[1].split("###")[0]
+        assert "`elisity policy get-enforcement-score`" in removed_section
+        assert "These 1 commands are gone" in removed_section
+
+    def test_a_name_taken_over_by_another_operation_gets_its_own_section(self):
+        """The quiet one. `/api/policy/v1/state` was deleted; the surviving
+        `/api/state-sync/v1/state` inherited the freed name `policy get-state`.
+
+        Nothing fails — the name still resolves and calls a different endpoint.
+        Listing it under "will now fail with No such command" is backwards.
+        """
+        diff = {
+            "summary": {}, "added": [],
+            "removed": [_full_op("policy", "get-state", "GET", "/api/policy/v1/state")],
+            "changed": [{
+                "method": "GET", "path": "/api/state-sync/v1/state",
+                "command": "get-state", "group": "policy", "parametersAfter": {},
+                "changes": {"command": {"from": "get-state-get", "to": "get-state"}},
+            }],
+        }
+        out = render(diff)
+        removed_section = out.split("### Removed commands")[1].split("###")[0]
+        assert "get-state" not in removed_section
+        takeover = out.split("### Command names now pointing at a different endpoint")[1]
+        assert "`elisity policy get-state`" in takeover
+        assert "/api/policy/v1/state" in takeover
+        assert "/api/state-sync/v1/state" in takeover
+        assert "does not fail" in takeover
+
+    def test_reconcile_is_a_no_op_when_nothing_overlaps(self):
+        added = [_full_op("devices", "brand-new", "GET", "/api/x/new")]
+        removed = [_full_op("devices", "long-gone", "GET", "/api/x/old")]
+        assert gen.reconcile(added, removed, []) == (added, removed, [], [])
+
+
+# --------------------------------------------------------------------------
+# Flags, not spec names
+# --------------------------------------------------------------------------
+
+
+class TestFlagRendering:
+    """The changelog must name the flag that works.
+
+    It rendered `--{spec name}`, so it advertised `--format` on
+    `devices export-devices` — where `--format` is the CLI's own output-format
+    override. Leia drove it: `export-devices --format csv --body {}` exits 0
+    with `params={}` (the value absorbed, never sent); `--format-param csv`
+    exits 0 with `params={'format': 'csv'}`. Silent, no warning.
+    """
+
+    def _entry(self, **kwargs):
+        base = {
+            "method": "POST", "path": "/api/identity-graph/v2/devices/export",
+            "command": "export-devices", "group": "devices",
+            "parametersAfter": {"query:format": _param("format")},
+            "changes": {"parameters": {"added": [_param("format")]}},
+        }
+        base.update(kwargs)
+        return base
+
+    def test_a_colliding_flag_renders_as_the_renamed_flag(self):
+        detail = gen._signature_detail(self._entry())
+        assert "`--format-param`" in detail
+        assert "(sends `format`)" in detail
+        assert "`--format` " not in detail
+
+    def test_a_non_colliding_flag_renders_unchanged_with_no_noise(self):
+        detail = gen._signature_detail(self._entry(
+            parametersAfter={"query:siteId": _param("siteId")},
+            changes={"parameters": {"added": [_param("siteId")]}},
+        ))
+        assert detail == "new optional `--siteId` (string)"
+
+    def test_a_path_parameter_renders_as_a_positional_argument(self):
+        """A path parameter has no flag at all — Click makes it positional."""
+        detail = gen._signature_detail(self._entry(
+            path="/api/x/{attributeName}/values",
+            parametersAfter={"path:attributeName": _param("attributeName", "path", True)},
+            changes={"parameters": {"added": [_param("attributeName", "path", True)]}},
+        ))
+        assert "new required `ATTRIBUTENAME`" in detail
+        assert "--attributeName" not in detail
+
+    def test_a_changed_parameter_also_uses_the_emitted_flag(self):
+        detail = gen._signature_detail(self._entry(
+            changes={"parameters": {"changed": [{
+                "parameter": "query:format",
+                "from": _param("format", ptype="unknown"),
+                "to": _param("format"),
+            }]}},
+        ))
+        assert "`--format-param`" in detail
+
+    def test_the_real_diff_advertises_only_flags_that_exist(self):
+        """Whole-changelog sweep against the live CLI surface.
+
+        Every flag the rendered changelog names must actually be accepted by the
+        command it names it on.
+        """
+        if not REAL_DIFF.exists():
+            pytest.skip("26.7 diff artifact not present")
+        from click.testing import CliRunner
+
+        from elisity_cli.main import cli
+
+        out = render(json.loads(REAL_DIFF.read_text()))
+        pattern = re.compile(
+            r"^- `elisity (?P<group>\S+) (?P<command>\S+)` — (?P<detail>.*)$", re.M
+        )
+        runner = CliRunner()
+        offenders = []
+        for match in pattern.finditer(out):
+            # Only flags a caller is being told they can USE. A "dropped
+            # `--columnFilter`" clause names a flag that is supposed to be gone;
+            # demanding it still exist would invert the check.
+            usable = "; ".join(
+                bit for bit in match["detail"].split("; ")
+                if not bit.startswith("dropped ")
+            )
+            flags = set(re.findall(r"`(--[A-Za-z0-9][\w.-]*)`", usable))
+            if not flags:
+                continue
+            help_text = runner.invoke(
+                cli, [match["group"], match["command"], "--help"]
+            ).output
+            for flag in flags:
+                # Whole-token match. A substring test passes `--format` against
+                # a help line that only offers `--format-param`, which is the
+                # exact confusion this test exists to catch — the first version
+                # of this assertion was vacuous for that reason.
+                if not re.search(re.escape(flag) + r"(?![\w-])", help_text):
+                    offenders.append(f"{match['group']} {match['command']}: {flag}")
+        assert offenders == [], (
+            "changelog advertises flags the command does not accept: "
+            + ", ".join(offenders)
+        )
 
 
 # --------------------------------------------------------------------------
