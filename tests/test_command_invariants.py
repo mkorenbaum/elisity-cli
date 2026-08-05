@@ -208,6 +208,35 @@ class TestParameterCollisions:
         assert 'params["format"]' in module
         assert 'params["query"]' in module
 
+    @pytest.mark.parametrize("label,names", [
+        ("context arg", ["ctx"]),
+        ("body args", ["body", "body_file"]),
+        ("output override dests", ["cmd_fmt", "cmd_query"]),
+        ("python keywords", ["from", "class", "type"]),
+        ("all at once", ["ctx", "confirm", "format", "query", "cmd_fmt", "body_file"]),
+    ])
+    def test_reserved_identifier_names_do_not_break_generation(self, label, names):
+        """Any spec param name must be absorbable, not just the ones seen so far."""
+        module = _generate_one("get", "/api/topology/v2/w", [
+            {"name": n, "in": "query", "schema": {"type": "string"}} for n in names
+        ])
+        compile(module, "topology.py", "exec")
+        for n in names:
+            assert f'params["{n}"]' in module, f"{n} is no longer sent on the wire"
+
+    def test_worst_case_delete_keeps_its_gate(self):
+        """Path param, query param and the guard all named `confirm`."""
+        module = _generate_one("delete", "/api/topology/v2/v/{confirm}", [
+            {"name": "confirm", "in": "path", "required": True, "schema": {"type": "string"}},
+            {"name": "confirm", "in": "query", "schema": {"type": "string"}},
+            {"name": "format", "in": "query", "schema": {"type": "string"}},
+        ])
+        compile(module, "topology.py", "exec")
+
+        assert "Use --confirm to execute this destructive operation." in module
+        assert '@click.option("--confirm/--no-confirm"' in module
+        assert 'params["confirm"]' in module
+
     def test_every_committed_module_compiles(self):
         """Net that catches any collision class not enumerated above."""
         for path in sorted(COMMANDS_DIR.glob("*.py")):
