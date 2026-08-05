@@ -42,7 +42,7 @@ Out of scope for this guide:
 - Product positioning, architecture explanations, or "why microsegmentation". Those
   belong in product docs.
 - A command-by-command reference. See [Command Reference](command-reference.md) for
-  all 466 commands.
+  all 613 commands.
 - Building and deploying the CLI itself. See the repository README for development
   setup.
 
@@ -1428,7 +1428,7 @@ HTTP 403: {"error":"Forbidden","message":"User does not have required scope: pol
 - *Resource not found* — the ID you passed doesn't exist. Common after a delete
   or in cross-tenant scripts where the IDs don't match.
 - *Endpoint not enabled on this CCC version* — older CCC tenants may not have all
-  466 commands implemented. Run the corresponding `--help` to see what's available.
+  613 commands implemented. Run the corresponding `--help` to see what's available.
 
 ```text
 HTTP 404: {"error":"Not Found"}
@@ -2241,7 +2241,7 @@ code `0`.
 
 ## Appendix A: full command tree
 
-The CLI exposes 466 commands. The full reference, including parameters and return
+The CLI exposes 613 commands. The full reference, including parameters and return
 types for each, lives at:
 
 - [Command Reference](command-reference.md)
@@ -2269,7 +2269,7 @@ Usage: elisity [OPTIONS] COMMAND [ARGS]...
   Elisity CCC CLI — command-line interface to the Cloud Control Center API.
 
   Manages topology, policies, devices, connectors, AD/Entra integration,
-  traffic flows, and system operations — 466 commands across 12 groups.
+  traffic flows, and system operations — 613 commands across 12 groups.
 
   Configuration:   Set CCC_BASE_URL, CCC_CLIENT_ID, CCC_CLIENT_SECRET env
   vars, or   run 'elisity config set-profile' to store credentials.
@@ -2657,12 +2657,16 @@ Judgment calls made while writing this guide. Surfaced here for reviewer awarene
   guide replaces it with `service-account@your-org.example` in the displayed JSON
   blob to keep the file tenant-neutral. Other capture data (UUIDs, timestamps,
   numericIds) is preserved verbatim.
-- **Sample 18 root-help command count.** The root help text reads "466 commands"
-  (436 REST + 20 GraphQL reporting + 7 CLI-native auth/config + 3 CLI-native
-  glossary). Older copy in the project may reference "443" (pre-reporting),
-  "441", "436", "462", or "465" (pre-`diagnose-low-score`) — all stale. The guide
-  uses 466 in prose, matching what the captured help output says. Anyone updating
-  these docs should re-capture if the count changes.
+- **Sample 18 root-help command count.** The root help text now reads "613
+  commands" (583 REST + 20 GraphQL reporting + 7 CLI-native auth/config + 3
+  CLI-native glossary) after the CCC 26.7 regeneration. The sample in this guide
+  was captured against the CCC 26.3 command set, when the same line read "466
+  commands" (436 REST); the prose has been updated to 613 but the captured block
+  reflects its capture date. Older copy in the project may reference "443"
+  (pre-reporting), "441", "436", "462", "465" (pre-`diagnose-low-score`) or
+  "466" (pre-26.7) — all stale. `tools/audit_counts.py` now checks the root help
+  string in `src/elisity_cli/main.py` as well as the README and the command
+  reference, so this specific number can no longer drift silently.
 - **Sample 09 (distribution zones table).** The captured table is 19 columns wide
   and unreadable on a normal terminal. The guide does not paste the raw table;
   instead it shows the projection-with-JMESPath pattern that produces a usable

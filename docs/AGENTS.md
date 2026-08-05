@@ -156,7 +156,7 @@ When a human asks for something using a phrase you don't immediately recognise:
    Do not act on a guess for non-trivial operations.
 
 4. **Never paraphrase a UI feature into a plausible-but-fake CLI command.**
-   The CLI has 466 commands; if a verb you imagine isn't in `--help`, it
+   The CLI has 613 commands; if a verb you imagine isn't in `--help`, it
    doesn't exist. The honesty rule is non-negotiable — fabricated commands
    waste human review cycles and damage trust.
 
@@ -281,17 +281,54 @@ parsed output, or use the CLI's own `-q` filter.
 The following verbs change live tenant state. Treat each as a P0 confirmation
 gate: report the exact command to the human, get explicit go/no-go, then run.
 
-- `delete-*`, `bulk-delete-*`, `decommission-*` (always require `--confirm`)
-- `change-status`, `update-policy`, `update-policy-put`, `update-policy-set`
-- `create-policy`, `create-policy-set`, `create-dynamic-policy-group`,
-  `create-network-policy-group`, `create-security-profile`
-- `activate-workflow`, `enable-local-policy-groups`, `enable-multiple-policy-sets`
-- `recreate-policy-suggestions`, `reset-suggestions-to-default`
-- Any `force-sync`, `resync`, `re-initialize-*`
+- `delete-*`, `bulk-*` (create/delete/move/update), `decommission-*`,
+  `force-delete-*` (deletes always require `--confirm`)
+- `create-*`, `update-*`, `patch-*`, `replace-*`, `overwrite-*`, `rename-*`
+- `add-*`, `remove-*`, `move-*`, `reorder-*` — including
+  `add-definition` / `remove-definition` on custom applications, and
+  `move-policy-group-scope`
+- `change-status`, `change-active-ve`, `change-ven-group`
+- `enable-*` / `disable-*` — policy groups, and VE/VEN **maintenance mode**
+  (`enable-maintenance`, `enable-maintenance-for-group`, and their `disable-`
+  counterparts) — maintenance mode changes enforcement behaviour on live
+  infrastructure
+- `set-*` — `set-feature-flag-ig`, `set-logger-levels-bulk`,
+  `set-distribution-zones`
+- `activate-workflow`, `recreate-policy-suggestions`,
+  `reset-suggestions-to-default`
+- `import-*` / `cancel-import`, `upload-*` (bulk VE/VEN JSON, AD agent logs)
+- `sync-*`, `refresh-*`, `force-sync`, `resync`, `re-initialize-*`,
+  `discover-ec2workloads` — these trigger real work against live infrastructure
+  even though they create nothing directly
+- `restart` (restarts an AD connector), `pull-logs`, `save-activity-logs`
+- `pause-snapshot-schedule`, `resume-snapshot-schedule`
+- `generate-external-id` — mints and persists an AWS external ID / account ID
 
 A safe rule of thumb: if a command in the glossary mapping starts with anything
 other than `get-`, `list-`, `read-`, `search-`, `count-`, or `export-`, get
 human approval before running.
+
+### POST commands that are read-only
+
+The rule of thumb above is deliberately strict, and it will flag a handful of
+commands that only read. CCC uses `POST` for queries whose filter payload is too
+large for a query string, so the HTTP verb is not a reliable signal on its own.
+These are safe to run without approval — each is described as a read in the CCC
+spec:
+
+| Command | What it does |
+|---------|--------------|
+| `devices devices-view` | Query devices with CSearch filters |
+| `devices devices-aggregate` | Get device aggregate counts |
+| `devices get-devices-view` | Paginated device listing |
+| `policy lookup` | Resolve a batch of label IDs to metadata |
+| `policy preview-operation` | Preview the scope of a matrix operation — explicitly a dry run |
+| `policy validate-*`, `connectors validate-*` | Validate a payload without applying it |
+| `flows traffic-record-export` | Export traffic records as CSV |
+| `devices generate-trust-policy` | Render the IAM trust-policy JSON for the operator to apply in AWS |
+
+Anything not in this table gets the rule of thumb. When a new command appears
+and you cannot tell, treat it as destructive and ask.
 
 ---
 

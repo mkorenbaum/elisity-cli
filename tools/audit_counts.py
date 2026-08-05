@@ -242,11 +242,25 @@ def check_doc(path: Path, claims: list) -> list:
     return results
 
 
+def _root_help_claims(counts: dict) -> list:
+    """The command count baked into `elisity --help`.
+
+    This one is the most visible number in the project — every user sees it on
+    every root help invocation — and it was the last to be checked. It sat at
+    466 through the CCC 26.7 bump because the audit only looked at markdown.
+    """
+    return [
+        ("root help: total commands",
+         r"— (\d+) commands across", counts["totals"]["total"]),
+    ]
+
+
 def check_docs(counts: dict) -> list:
     """Cross-check every documented count against the source tree."""
     return (
         check_doc(README, _readme_claims(counts))
         + check_doc(COMMAND_REFERENCE, _command_reference_claims(counts))
+        + check_doc(MAIN_PY, _root_help_claims(counts))
     )
 
 

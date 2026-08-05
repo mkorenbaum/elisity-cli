@@ -74,13 +74,19 @@ def test_unknown_term_exits_nonzero(runner):
     assert result.exit_code == 1
 
 
-def test_list_returns_19_terms(runner):
-    """`elisity glossary list` returns 19 entries."""
+def test_list_returns_every_mapped_term(runner):
+    """`elisity glossary list` surfaces every entry in the mapping file.
+
+    Asserted against the mapping rather than a literal count: a hardcoded number
+    here has to be edited by hand every time a term is added, and the edit is
+    easy to forget. What actually matters is that `list` hides nothing.
+    """
+    expected = len(json.loads(MAPPING_PATH.read_text()))
     result = runner.invoke(cli, ["glossary", "list"])
     assert result.exit_code == 0, result.output
     data = json.loads(result.output)
     assert isinstance(data, list)
-    assert len(data) == 19
+    assert len(data) == expected
 
 
 def test_glossary_group_registered():
@@ -94,3 +100,43 @@ def test_data_path_resolves():
     """The data-path resolver finds both JSON files."""
     assert glossary_mod._data_path("product-glossary.json").exists()
     assert glossary_mod._data_path("ui-to-cli-mapping.json").exists()
+
+
+def test_every_referenced_command_exists():
+    """No glossary entry may cite a command that does not exist.
+
+    The glossary is the agent-facing lookup surface — docs/AGENTS.md tells an
+    agent to run `glossary explain` and then run the recipe it returns. A dead
+    recipe therefore hands an agent a fabricated command, which is precisely the
+    failure mode AGENTS.md calls non-negotiable.
+
+    CCC 26.7 made this concrete: it removed `policy get-enforcement-score`,
+    `policy get-enforcement-score-weight-settings`, `flows get-latest-data` and
+    `flows get-all`, all four of which were still cited here. Nothing caught it,
+    because the counts all still agreed.
+    """
+    import re
+
+    mapping = json.loads(MAPPING_PATH.read_text())
+
+    # Build the real command surface straight from the registered Click groups,
+    # so this can never drift from what the CLI actually exposes.
+    from elisity_cli.commands import COMMAND_GROUPS
+
+    real = {}
+    for name in COMMAND_GROUPS:
+        mod = __import__(f"elisity_cli.commands.{name}", fromlist=["group"])
+        real[name] = set(mod.group.commands)
+    real["auth"] = {"test", "token", "whoami"}
+    real["config"] = {"set-profile", "use-profile", "list-profiles", "show"}
+
+    reference_re = re.compile(r"elisity ([a-z][a-z0-9-]*) ([a-z][a-z0-9-]*)")
+    bad = []
+    for entry in mapping:
+        for group, command in reference_re.findall(json.dumps(entry)):
+            if group not in real:
+                bad.append(f"{entry['term']}: unknown group 'elisity {group}'")
+            elif command not in real[group]:
+                bad.append(f"{entry['term']}: no such command 'elisity {group} {command}'")
+
+    assert not bad, "glossary cites commands that do not exist:\n  " + "\n  ".join(sorted(set(bad)))
