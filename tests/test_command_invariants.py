@@ -15,6 +15,8 @@ Covered:
   4. Loadability  — every registered group imports and exposes its commands.
 """
 
+import json
+import os
 import re
 import subprocess
 import sys
@@ -30,7 +32,11 @@ sys.path.insert(0, str(REPO_ROOT))
 from generate_commands import (  # noqa: E402
     HANDCODED_GROUPS,
     build_groups,
+    assert_every_tag_mapped,
     is_destructive_operation,
+    resolve_group,
+    resolve_parameter_names,
+    unmapped_tags,
     generate_module,
     merge_path_templates,
     render_init_module,
@@ -46,6 +52,16 @@ from elisity_cli.commands import COMMAND_GROUPS  # noqa: E402
 from elisity_cli.main import cli  # noqa: E402
 
 COMMANDS_DIR = REPO_ROOT / "src" / "elisity_cli" / "commands"
+
+# The OpenAPI specs are not committed (1-2 MB each, and the repo generates FROM
+# them rather than shipping them). Where a checkout has them staged, a few tests
+# assert against the real thing; where it does not, they skip and the synthetic
+# equivalents still run. $ELISITY_API_SPEC is the same variable the generator
+# reads.
+SPEC_267 = Path(
+    os.environ.get("ELISITY_API_SPEC", REPO_ROOT.parent / "input" / "api-docs-26.7.json")
+)
+SPEC_263 = REPO_ROOT.parent / "input" / "api-docs-baseline-26.3.json"
 
 
 @pytest.fixture(scope="module")
@@ -332,6 +348,159 @@ def _generate_one(method: str, path: str, params: list, tag: str = "site-control
     return generate_module(group_name, groups[group_name])
 
 
+class TestUnmappedTagGuard:
+    """A new CCC tag is a human decision, not something to route by accident.
+
+    resolve_group() takes the first tag that hits TAG_TO_GROUP, so an unmapped
+    tag riding along with a mapped one gets routed by whichever mapped tag comes
+    first — which may have nothing to do with what the new tag means. The guard
+    used to `continue` on any operation carrying a mapped tag, which made
+    exactly that case invisible. 21 operations in the 26.7 spec already carry
+    two tags (20 in 26.3), so this is the shape the next bump will have.
+
+    The guard itself has never had a committed test; Leia proved it non-vacuous
+    by hand and found the hole. These are the two specs that walked through it.
+    """
+
+    def _spec(self, path, tags):
+        return {"paths": {path: {"get": {
+            "tags": tags, "operationId": "doThing", "responses": {"200": {}},
+        }}}}
+
+    def test_unmapped_tag_alone_is_caught(self):
+        """The case that always worked — kept so a regression is visible."""
+        spec = self._spec("/api/topology/v1/x", ["Totally New Tag"])
+        assert unmapped_tags(spec) == {"Totally New Tag": 1}
+        with pytest.raises(SystemExit):
+            assert_every_tag_mapped(spec)
+
+    def test_unmapped_tag_beside_a_mapped_sibling_is_caught(self):
+        """Leia's case (a): a new tag hiding behind a known one.
+
+        `Site Templates (NEW 26.8)` is invisible if the guard skips any
+        operation that has at least one mapped tag.
+        """
+        spec = self._spec(
+            "/api/topology/v1/site-templates/{id}",
+            ["Sites", "Site Templates (NEW 26.8)"],
+        )
+        assert unmapped_tags(spec) == {"Site Templates (NEW 26.8)": 1}
+        with pytest.raises(SystemExit):
+            assert_every_tag_mapped(spec)
+
+    def test_incidental_sibling_routing_the_wrong_way_is_caught(self):
+        """Leia's case (b), the damaging shape.
+
+        The operation is a flows operation by path, carries a brand-new flow
+        tag, and routes to `policy` on an incidental `Device` tag. The routing
+        is not corrected here — resolve_group()'s first-match behaviour is
+        deliberately untouched so this fix re-routes nothing — but generation
+        now refuses until a human maps the tag.
+        """
+        spec = self._spec("/api/flows/v1/newthing", ["Brand New Flow Tag", "Device"])
+        group, matched_by = resolve_group(["Brand New Flow Tag", "Device"],
+                                          "/api/flows/v1/newthing")
+        assert (group, matched_by) == ("policy", "tag")   # unchanged behaviour
+        assert unmapped_tags(spec) == {"Brand New Flow Tag": 1}
+        with pytest.raises(SystemExit):
+            assert_every_tag_mapped(spec)
+
+    def test_counts_are_per_tag_not_per_operation(self):
+        spec = {"paths": {
+            "/api/topology/v1/a": {"get": {"tags": ["Sites", "New A"],
+                                           "operationId": "a", "responses": {"200": {}}}},
+            "/api/topology/v1/b": {"get": {"tags": ["New A", "New B"],
+                                           "operationId": "b", "responses": {"200": {}}}},
+        }}
+        assert unmapped_tags(spec) == {"New A": 2, "New B": 1}
+
+    def test_fully_mapped_specs_still_generate(self):
+        """The fix must not turn either shipped spec into a generation failure.
+
+        Both 26.3 and 26.7 have every tag mapped, including on the 20/21
+        double-tagged operations, so widening the guard changes nothing for them
+        — asserted rather than assumed.
+        """
+        for spec_path in (SPEC_267, SPEC_263):
+            if not spec_path.exists():
+                pytest.skip(f"{spec_path.name} not staged in this checkout")
+            spec = json.loads(spec_path.read_text())
+            assert unmapped_tags(spec) == {}
+            assert_every_tag_mapped(spec)   # must not raise
+
+    def test_double_tagged_but_fully_mapped_still_generates(self):
+        """The real 26.7 double-tag pair, without needing the spec file.
+
+        PUT /api/policy/v1/insights/policy-groups/{id} carries
+        ["Suggestion", "Dynamic Policy Group Insights"] — both mapped. Widening
+        the guard must not turn a fully-mapped co-tagged operation into a
+        failure.
+        """
+        spec = self._spec(
+            "/api/policy/v1/insights/policy-groups/{id}",
+            ["Suggestion", "Dynamic Policy Group Insights"],
+        )
+        assert unmapped_tags(spec) == {}
+        assert_every_tag_mapped(spec)
+
+    def test_double_tagged_operations_exist_in_the_shipped_specs(self):
+        """Guards the test above against being vacuous on a single-tag spec."""
+        if not SPEC_267.exists():
+            pytest.skip("api-docs-26.7.json not staged in this checkout")
+        spec = json.loads(SPEC_267.read_text())
+        multi = [
+            (path, method)
+            for path, methods in spec.get("paths", {}).items()
+            for method, op in methods.items()
+            if isinstance(op, dict) and len(op.get("tags") or []) > 1
+        ]
+        assert len(multi) >= 20, len(multi)
+
+
+def _drive_generated_command(module_source, argv):
+    """Run a generated command through Click against a recording fake client.
+
+    Returns the endpoint and params the command actually put on the wire. This
+    is the only way to catch the silent-wrong-request class: the code compiles,
+    exits 0, and sends something other than what the user typed.
+    """
+    import types
+
+    import click as _click
+
+    from elisity_cli import context as ctxmod
+
+    namespace = types.ModuleType("generated_under_test")
+    namespace.__dict__["__name__"] = "generated_under_test"
+    exec(compile(module_source, "generated_under_test.py", "exec"), namespace.__dict__)
+
+    sent = {}
+
+    class RecordingClient:
+        def _record(self, endpoint, params=None, data=None):
+            sent.update({"endpoint": endpoint, "params": params, "data": data})
+            return [{"ok": True}]
+
+        get = post = put = patch = delete = get_ndjson = _record
+
+    @_click.group()
+    @_click.pass_context
+    def root(ctx):
+        ctx.obj = ctxmod.CliContext()
+
+    root.add_command(namespace.group)
+
+    original = ctxmod.CliContext.ensure_client
+    ctxmod.CliContext.ensure_client = lambda self: RecordingClient()
+    try:
+        result = CliRunner().invoke(root, [namespace.group.name] + argv)
+    finally:
+        ctxmod.CliContext.ensure_client = original
+
+    assert result.exit_code == 0, result.output
+    return sent
+
+
 class TestParameterCollisions:
     """A spec parameter must never collide with an identifier the command owns.
 
@@ -389,16 +558,44 @@ class TestParameterCollisions:
         ("body args", ["body", "body_file"]),
         ("output override dests", ["cmd_fmt", "cmd_query"]),
         ("python keywords", ["from", "class", "type"]),
+        ("body locals", ["params", "endpoint"]),
+        ("every body local", ["endpoint", "params", "body", "client", "result"]),
         ("all at once", ["ctx", "confirm", "format", "query", "cmd_fmt", "body_file"]),
     ])
-    def test_reserved_identifier_names_do_not_break_generation(self, label, names):
-        """Any spec param name must be absorbable, not just the ones seen so far."""
+    def test_reserved_identifier_names_reach_the_wire(self, label, names):
+        """Any spec param name must be absorbable, not just the ones seen so far.
+
+        Asserted by DRIVING the generated command, not by scanning its source.
+        The source-text version of this test passed on code that corrupted the
+        request: for a parameter named `params` the broken module emits
+        `params["params"] = params` — which contains the literal the assertion
+        looked for, compiles, and at exit 0 sends the params dict as its own
+        value while the user's input never leaves the process. A test that
+        cannot fail on the bug it names is worse than no test; it is a claim of
+        coverage.
+        """
         module = _generate_one("get", "/api/topology/v2/w", [
             {"name": n, "in": "query", "schema": {"type": "string"}} for n in names
         ])
         compile(module, "topology.py", "exec")
         for n in names:
             assert f'params["{n}"]' in module, f"{n} is no longer sent on the wire"
+
+        # Drive with the flags the generator ACTUALLY emits: a name colliding
+        # with one of the CLI's own flags (--format, --body, ...) is renamed,
+        # while the wire name stays the spec name.
+        _, resolved = resolve_parameter_names(
+            "get", [], [(n, "str", False, "", None) for n in names],
+            "/api/topology/v2/w",
+        )
+        argv = ["do-thing"]
+        for spec in resolved:
+            argv += [spec["flag"], f"VALUE-{spec['spec_name']}"]
+        sent = _drive_generated_command(module, argv)
+        assert sent["params"] == {n: f"VALUE-{n}" for n in names}, (
+            f"{label}: the user's values did not reach the wire intact"
+        )
+        assert sent["endpoint"] == "/api/topology/v2/w"
 
     def test_worst_case_delete_keeps_its_gate(self):
         """Path param, query param and the guard all named `confirm`."""

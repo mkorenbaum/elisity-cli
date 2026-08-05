@@ -271,7 +271,31 @@ def python_safe(name: str) -> str:
 # — a SyntaxError, which _register_groups() swallows as a warning, silently
 # dropping the ENTIRE group (up to 117 commands) from the CLI. For a DELETE that
 # also means losing the --confirm gate. See _unique_name().
-RESERVED_DESTS = frozenset({"ctx", "cmd_fmt", "cmd_query", "body_data", "body_file"})
+# Identifiers the generated command owns. Two groups, one rule: a spec parameter
+# that normalizes onto any of them must be renamed.
+#
+#   Signature names — a collision emits `def cmd_x(ctx, confirm, ..., confirm)`,
+#   a SyntaxError that _register_groups() swallows as a warning, silently
+#   dropping the ENTIRE group (up to 181 commands) from the CLI.
+#
+#   Body locals — a collision compiles and runs at exit 0 while sending the
+#   WRONG REQUEST. `endpoint` and `params` are the dangerous pair because both
+#   are assigned before the query dict is populated: a spec parameter named
+#   `params` emits `params = {}` then `params["params"] = params`, putting the
+#   dict inside itself, and one named `endpoint` sends the URL as a query value.
+#   The user's value never reaches the wire and nothing complains. Same silent-
+#   wrong-request family as the two bugs Phase 1 fixed.
+#
+# `body`, `client`, `result`, `f`, `_json` and `e` are assigned after the query
+# dict is built, so they cannot corrupt the request today. They are reserved
+# anyway: the ordering is an implementation detail of this emitter, renaming an
+# identifier is free, and the wire name is never touched either way.
+RESERVED_DESTS = frozenset({
+    # signature
+    "ctx", "cmd_fmt", "cmd_query", "body_data", "body_file",
+    # body locals
+    "endpoint", "params", "body", "client", "result", "f", "_json", "e",
+})
 RESERVED_FLAGS = frozenset({"--format", "-f", "--query", "-q", "--body", "--body-file"})
 CONFIRM_GUARD_DEST = "confirm"
 CONFIRM_GUARD_FLAGS = frozenset({"--confirm", "--no-confirm"})
@@ -828,17 +852,31 @@ def build_groups(spec: dict) -> tuple:
 def unmapped_tags(spec: dict) -> dict:
     """Tags present in the spec that TAG_TO_GROUP does not resolve.
 
-    Returns {tag: operation_count}. An operation is only counted when *none* of
-    its tags map, because resolve_group() takes the first tag that hits — an
-    operation carrying one mapped and one unmapped tag is still routed
-    correctly and is not a defect.
+    Returns {tag: operation_count}, counted per TAG and independent of its
+    siblings.
+
+    This used to skip any operation carrying at least one mapped tag, on the
+    reasoning that resolve_group() takes the first tag that hits so the routing
+    is still "correct". It is not: first-match means whichever mapped tag comes
+    first wins, and that may have nothing to do with the new tag's meaning. A
+    26.7 operation tagged ["Brand New Flow Tag", "Device"] routes to `policy` on
+    the incidental Device tag even though its path is /api/flows/v1/..., and the
+    guard never says a word. 21 operations in 26.7 already carry two tags (20 in
+    26.3), so CCC adding a third to one of them is exactly this input.
+
+    The whole point of the guard is that a new CCC tag is a human decision — a
+    tag that is invisible because it shares an operation with a known one is
+    the same silent misrouting the guard exists to prevent, just harder to see.
+    Sibling tags do not make a new tag decided.
+
+    resolve_group()'s first-match behaviour is deliberately left alone, so
+    fixing the guard re-routes nothing; it only makes the decision visible.
     """
     counts = defaultdict(int)
     for path, method, op, tags, op_id in iter_operations(spec):
-        if any(t in TAG_TO_GROUP for t in tags):
-            continue
         for t in tags:
-            counts[t] += 1
+            if t not in TAG_TO_GROUP:
+                counts[t] += 1
     return dict(counts)
 
 
