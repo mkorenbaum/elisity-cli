@@ -459,6 +459,21 @@ class TestDocumentedCounts:
         )
         assert proc.returncode == 0, proc.stdout + proc.stderr
 
+    def test_command_reference_is_regenerated(self):
+        """docs/command-reference.md must match what the source would produce.
+
+        It is a generated file, but nothing stops a regeneration from landing
+        without it. When that happened on the 26.7 bump the doc listed 45
+        commands that no longer existed and none of the 192 new ones — and a
+        command reference that confidently documents removed commands is worse
+        than none, because a reader cannot tell which entries are real.
+        """
+        proc = subprocess.run(
+            [sys.executable, str(REPO_ROOT / "tools" / "gen_command_reference.py"), "--check"],
+            capture_output=True, text=True, cwd=str(REPO_ROOT),
+        )
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+
     def test_audit_script_json_mode_is_parseable(self):
         import json
 
@@ -476,10 +491,21 @@ class TestDocumentedCounts:
         worthless as a guard."""
         import tools.audit_counts as ac
 
+        # Derive the claim from the source rather than hardcoding it. A literal
+        # count here goes stale on the next spec bump, and a stale literal makes
+        # the replace a no-op: no drift is injected, the audit correctly reports
+        # nothing, and this negative test fails for the wrong reason. That is
+        # exactly what happened on the 26.7 bump (466 -> 613).
+        total = collect_counts()["totals"]["total"]
+        marker = f"**{total} commands** total"
         original = ac.README.read_text()
+        assert marker in original, (
+            f"README does not state its total as {marker!r}; this test can no "
+            "longer inject drift and must be updated with the README's wording."
+        )
+
         fake = tmp_path / "README.md"
-        fake.write_text(original.replace("**466 commands** total",
-                                         "**999 commands** total"))
+        fake.write_text(original.replace(marker, "**999999 commands** total"))
         monkeypatch.setattr(ac, "README", fake)
 
         failures = [r for r in ac.check_docs(collect_counts()) if r["status"] != "OK"]

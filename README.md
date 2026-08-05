@@ -2,13 +2,15 @@
 
 [![tests](https://github.com/mkorenbaum/elisity-cli/actions/workflows/test.yml/badge.svg)](https://github.com/mkorenbaum/elisity-cli/actions/workflows/test.yml)
 
-Command-line interface to the Elisity Cloud Control Center (CCC) API. Provides complete coverage of the CCC API surface — all 436 REST endpoints from the OpenAPI spec, plus 20 hand-coded GraphQL commands for the `/api/reporting/v1/data` endpoint (Zero Trust scores, threat vectors, per-site KPIs, traffic vectors) that the OpenAPI spec doesn't include, plus a 3-command CLI-native `glossary` group that maps Elisity UI terminology to CLI commands.
+Command-line interface to the Elisity Cloud Control Center (CCC) API. Provides complete coverage of the CCC API surface — all 583 REST endpoints from the OpenAPI spec, plus 20 hand-coded GraphQL commands for the `/api/reporting/v1/data` endpoint (Zero Trust scores, threat vectors, per-site KPIs, traffic vectors) that the OpenAPI spec doesn't include, plus a 3-command CLI-native `glossary` group that maps Elisity UI terminology to CLI commands.
+
+Generated from the **CCC 26.7** OpenAPI spec. See [What changed in CCC 26.7](#what-changed-in-ccc-267) for the command-level delta.
 
 > **For AI agents:** see [docs/AGENTS.md](docs/AGENTS.md) for a UI-term → CLI-command operating guide. The `elisity glossary` group is the runtime lookup surface.
 
 ## Features
 
-- **466 commands** total (436 auto-generated from the CCC OpenAPI spec + 20 hand-coded GraphQL reporting commands + 7 CLI-native auth/config + 3 CLI-native glossary commands)
+- **613 commands** total (583 auto-generated from the CCC OpenAPI spec + 20 hand-coded GraphQL reporting commands + 7 CLI-native auth/config + 3 CLI-native glossary commands)
 - **Multi-profile configuration** — manage multiple CCC environments (prod, staging, lab)
 - **4 output formats** — JSON (default), table, YAML, CSV
 - **JMESPath filtering** — reshape and filter output with `-q` expressions
@@ -98,14 +100,14 @@ curl -H "Authorization: Bearer $TOKEN" https://your-ccc.idp01.elisity.io/api/top
 
 | Group | Commands | Description |
 |-------|----------|-------------|
-| `topology` | 117 | Sites, distribution zones, VE groups, VEs, VENs, flow exporters, cloud controllers |
-| `policy` | 117 | Policy sets, policies, policy groups, security profiles, site labels |
-| `devices` | 59 | Device CRUD, bulk operations, enrichment, suppression, custom attributes |
-| `ad` | 61 | Active Directory / Entra ID connectors, users, groups, agents |
-| `connectors` | 22 | Custom connector configurations, import/export, connectivity |
-| `insights` | 30 | Policy suggestions, dynamic/network group recommendations |
-| `flows` | 18 | Traffic flow search, device state, noise definitions |
-| `system` | 12 | Tasks, specs, state sync |
+| `topology` | 154 | Sites, distribution zones, VE groups, VEs, VENs, flow exporters, cloud controllers, interface + topology settings |
+| `policy` | 181 | Policy sets, policies, policy groups, security profiles, site labels, label management, access policy (LPA), custom applications, vendors |
+| `devices` | 89 | Device CRUD, bulk operations, enrichment, suppression, custom attributes, cloud workloads + AWS discovery |
+| `ad` | 49 | Active Directory / Entra ID connectors, agents (V2), agent logs, subscription refresh |
+| `connectors` | 35 | Connector configuration, custom connector devices/inventory, import/export, connectivity |
+| `insights` | 31 | Policy suggestions, dynamic/network group recommendations |
+| `flows` | 15 | Traffic flow search, device state, noise definitions, device heatmap |
+| `system` | 29 | Tasks, specs, state sync, task broker config, report snapshots + schedules |
 | `reporting` | 20 | **GraphQL** — Zero Trust scores, site KPIs, threat vectors, traffic-by-PG/IP. Hand-coded (the CCC reporting API is GraphQL, not in OpenAPI). |
 | `glossary` | 3 | Map Elisity UI terminology to CLI commands |
 | `auth` | 3 | Test connection, get token, decode JWT |
@@ -204,8 +206,15 @@ python3 tests/qa_comprehensive.py
 ### Regenerating commands from a new CCC OpenAPI spec
 
 The API-backed groups are generated from the CCC OpenAPI specification, pulled from a
-live tenant at `GET /v3/api-docs`. The current command set was generated from the CCC
-26.3-era spec (`info.version` 1.0.0, 329 paths / 436 operations, captured 2026-06-21).
+live tenant at `GET /v3/api-docs` (served unauthenticated). The current command set was
+generated from the **CCC 26.7** spec — OpenAPI 3.1.0, 441 paths / 583 operations —
+captured from `insights-demo.idp01.elisity.io` on 2026-08-05. The previous set came from
+the CCC 26.3-era spec (OpenAPI 3.0.1, 329 paths / 436 operations, captured 2026-06-21).
+
+> **The spec carries no CCC version stamp.** `info.version` reads `1.0.0` in both 26.3
+> and 26.7 — that is the gateway API version and it does not track the CCC release. The
+> CCC version above is cited from the tenant the spec was pulled from, so record that
+> provenance whenever you refresh the baseline.
 
 **Always diff before you regenerate.** The diff is what makes a version bump reviewable:
 
@@ -231,10 +240,24 @@ python3 generate_commands.py --spec new-api-docs.json
 # The spec path resolves as: --spec > $ELISITY_API_SPEC > the historical host path
 ELISITY_API_SPEC=new-api-docs.json python3 generate_commands.py
 
-# 3. Confirm counts, the delete gate, and the docs all still agree.
+# 3. Regenerate the changelog section of this README from the same diff.
+python3 tools/gen_changelog.py --diff diff.json --version 26.8 \
+    --source your-tenant.idp01.elisity.io --baseline 26.7
+
+# 4. Confirm counts, the delete gate, and the docs all still agree.
 python3 tools/audit_counts.py
 pytest
 ```
+
+**The generator refuses to run if any spec tag has no `TAG_TO_GROUP` entry**, printing
+each unmapped tag, its operation count, and the group the path-prefix fallback would
+otherwise have picked. This is deliberate: an unmapped tag is not a loud failure, it is
+a silent misrouting. CCC 26.7 renamed 16 tags, and six `Connectors Configurations`
+operations moved from `connectors` to `devices` that way while the totals stayed
+entirely plausible. Map the tag, then regenerate.
+
+The changelog is generated from the diff rather than hand-written, because a
+hand-maintained list of ~200 command changes drifts the first time anyone regenerates.
 
 `audit_counts.py` walks the source tree and emits the authoritative numbers — total,
 per group, generated vs hand-coded, delete commands and `--confirm` coverage. It exits
@@ -252,6 +275,404 @@ review by eye:
   keeps them registered in `COMMAND_GROUPS`; the generator aborts if a spec tag is ever
   mapped onto one of them.
 
+## What changed in CCC 26.7
+
+The command set is generated from the CCC 26.7 OpenAPI spec, pulled from `insights-demo.idp01.elisity.io`. The previous set came from the 26.3 spec.
+
+| | 26.3 | 26.7 |
+|---|---:|---:|
+| Spec paths | 329 | 441 |
+| Spec operations | 436 | 583 |
+
+**192 commands added, 45 removed, 274 operations changed.**
+
+### Removed commands (breaking)
+
+These 45 commands are gone because the operation was removed from the CCC spec. Any script invoking one will now fail with `No such command`.
+
+**AD Agent** (1)
+
+- `elisity ad migrate-old-ad-agent-config` — Migrate old config for specific AD Agent
+
+**AD Device** (8)
+
+- `elisity ad add-device-ad` — Add AD device
+- `elisity ad attach-device` — Attach AD device
+- `elisity ad delete-device-ad` — Delete AD device
+- `elisity ad detach-device` — Detach AD device
+- `elisity ad get-device` — Get AD device
+- `elisity ad get-device-by-sid-and-domain` — Get AD device by SID and Domain
+- `elisity ad refresh-device` — Refresh AD device
+- `elisity ad update-device-ad` — Update AD device
+
+**AD Domain** (1)
+
+- `elisity ad delete-domain-data` — Delete all data related to the domain
+
+**AD Group** (7)
+
+- `elisity ad create-group-post` — Add AD group
+- `elisity ad delete-group` — Delete AD group
+- `elisity ad delete-group-delete` — Delete AD group
+- `elisity ad get-group-by-sid-and-domain` — Get AD group by SID and Domain
+- `elisity ad get-groups-view` — Get groups view
+- `elisity ad update-group` — Update AD group
+- `elisity ad update-group-put` — Update AD group
+
+**AD Member** (2)
+
+- `elisity ad create-group` — Update memberOf
+- `elisity ad create-group-delete` — Delete memberOf
+
+**AD User** (7)
+
+- `elisity ad attach-user` — Attach AD user
+- `elisity ad create-user` — Add AD user
+- `elisity ad delete-user` — Delete AD user
+- `elisity ad detach-user` — Detach AD user
+- `elisity ad get-user-by-sid-and-domain` — Get AD user by SID and Domain
+- `elisity ad refresh-user` — Refresh AD user
+- `elisity ad update-user` — Update AD user
+
+**DC Status** (1)
+
+- `elisity ad process-dc-status` — Process DcStatus
+
+**Device - CRUD - v2** (1)
+
+- `elisity devices get-device-attribute-values-with-display-names` — Get trustAttributes values with displayNames
+
+**Device State Cache** (7)
+
+- `elisity flows dump-all` — Get complete history for all devices
+- `elisity flows dump-latest` — Get latest data for all devices
+- `elisity flows get-device-data-history` — Get complete device data history
+- `elisity flows get-device-data-in-time-range` — Get device data history in time range
+- `elisity flows get-floor-data` — Get device data at or before timestamp
+- `elisity flows get-latest-data` — Get latest device data
+- `elisity flows get-latest-data-backward-compatible` — Get latest device data - backward compatible
+
+**Policy Set** (3)
+
+- `elisity policy get-enforcement-score` — Get Policy Enforcement Score With Info
+- `elisity policy get-enforcement-score-weight-settings` — Get settings for Policy Enforcement Score Weights
+- `elisity policy update-enforcement-score-weight-settings` — Save settings for Policy Enforcement Score Weights
+
+**Policy View** (1)
+
+- `elisity policy get-matrix` — Get matrix data
+
+**State Sync** (4)
+
+- `elisity policy e-discovery-distribution-zones-state-sync` — Sends all Distribution Zones to eDiscovery.state-sync topic.
+- `elisity policy e-discovery-sites-state-sync` — Sends all Sites to eDiscovery.state-sync topic.
+- `elisity policy get-state` — Get paged state of all Policy related resources. This API is using marker to paginate results.
+- `elisity policy resync-state` — Sends details of all the VE and VENs to elisity.state-sync topic.
+
+**Time** (1)
+
+- `elisity ad get-current-time` — Get current time
+
+**materialized-view-information-controller** (1)
+
+- `elisity flows get-all` — `GET /api/flows/v1/refresh-info`
+
+
+### Changed command signatures
+
+32 commands changed shape — a renamed command or a changed flag can break an existing script.
+
+**`ad`**
+
+- `elisity ad get-ad-agent-config` — new optional `--syslogVersion` (integer)
+- `elisity ad get-agents-and-dcs` — new optional `--page` (integer); new optional `--size` (integer); new optional `--sort` (string)
+- `elisity ad unregister-connector` — new optional `--deleteAdData` (boolean)
+
+**`connectors`**
+
+- `elisity connectors read-get` — renamed from `read`
+
+**`devices`**
+
+- `elisity devices export-devices` — new optional `--format` (string)
+- `elisity devices get-device-header-data` — renamed from `get-device-count`
+- `elisity devices get-device-header-data-get` — renamed from `get-device-header-data`
+- `elisity devices read-all-layer-instances-specification` — new optional `--includeWorkloads` (boolean)
+
+**`flows`**
+
+- `elisity flows flows-export` — `--offset` untyped (sent as string) -> integer; `--size` untyped (sent as string) -> integer
+- `elisity flows get-available-ports` — `--page` untyped (sent as string) -> integer; `--search` untyped (sent as string) -> string; `--size` untyped (sent as string) -> integer
+- `elisity flows get-pg-data` — `--format` untyped (sent as string) -> string; `--size` untyped (sent as string) -> integer
+- `elisity flows get-traffic-record` — `--offset` untyped (sent as string) -> integer; `--size` untyped (sent as string) -> integer
+- `elisity flows get-unique-values` — `--parameter` untyped (sent as string) -> string
+- `elisity flows search-noise-definitions` — `--query` untyped (sent as string) -> string
+
+**`policy`**
+
+- `elisity policy get-all-matching-criteria` — new optional `--targetType` (string)
+- `elisity policy get-policy-groups-by-ids` — new required `--filters` (object)
+- `elisity policy get-policy-groups-json` — new optional `--targetType` (string)
+- `elisity policy get-state` — renamed from `get-state-get`
+- `elisity policy lookup-dynamic` — new required `--filters` (object)
+- `elisity policy lookup-dynamic-totals` — new required `--filters` (object)
+- `elisity policy lookup-network` — new required `--filters` (object)
+
+**`system`**
+
+- `elisity system list-specs` — `--page` integer -> untyped (sent as string); `--size` integer -> untyped (sent as string); `--sort` string -> untyped (sent as string)
+- `elisity system list-tasks` — `--columnFilter` string -> untyped (sent as string); `--globalFilter` string -> untyped (sent as string); `--page` integer -> untyped (sent as string); `--size` integer -> untyped (sent as string); `--sort` string -> untyped (sent as string)
+
+**`topology`**
+
+- `elisity topology export-virtual-edge-nodes` — new optional `--contextVeId` (string)
+- `elisity topology get-all-distribution-zones-get` — new optional `--columnFilters` (string); dropped `--columnFilter`
+- `elisity topology get-all-sites-v2` — new optional `--columnFilters` (string); dropped `--columnFilter`
+- `elisity topology get-all-ve-ns-for-global-credentials` — new optional `--columnFilters` (string); dropped `--columnFilter`
+- `elisity topology get-virtual-edge` — new optional `--columnFilters` (string); dropped `--columnFilter`
+- `elisity topology get-virtual-edge-get` — new optional `--columnFilters` (string); dropped `--columnFilter`
+- `elisity topology get-virtual-edge-node-firewall-rules` — new optional `--columnFilters` (string); dropped `--columnFilter`
+- `elisity topology get-virtual-edge-nodes` — new optional `--columnFilters` (string); new optional `--contextVeId` (string); dropped `--columnFilter`
+- `elisity topology get-virtual-edge-nodes-by-post` — new optional `--contextVeId` (string)
+
+
+### Changed request bodies
+
+124 commands take a different request body. The command's flags are unchanged — the body is passed as opaque JSON via `--body` / `--body-file` — but the JSON you send must match the new schema.
+
+- **`ad`** — `agent-status`, `export`, `export-users`, `export-users-logon-history`, `export-users-post`, `put-configuration-value`, `register-connector`, `save-ad-agent-config`
+- **`connectors`** — `create`, `create-connector-configuration`, `update`, `update-connector-configuration`, `validate-connector-endpoint-configuration`
+- **`devices`** — `apply-custom-oui-mappings`, `attach`, `attached`, `bulk-create-devices`, `bulk-purge-device-layers`, `bulk-update-devices`, `create`, `create-configuration`, `create-device`, `enrich-by-id`, `enrich-by-id-append`, `enrich-by-ip`, `enrich-by-ip-append`, `execute-bulk-refresh`, `get-configurations-by-ids`, `get-device-aggregate`, `get-devices-view`, `update-configuration`, `update-device`
+- **`flows`** — `get-dash-board-summary-data`, `get-raw-traffic-summary`, `update-noise-definition`
+- **`insights`** — `create-suggestion`, `execute-create-workflow`, `update-suggestion`
+- **`policy`** — `clone-policy-set`, `create-dynamic-policy-group`, `create-dynamic-policy-groups`, `create-network-policy-group`, `create-network-policy-groups`, `create-policy`, `create-policy-group-label`, `create-policy-post`, `create-policy-set`, `create-policy-view`, `create-template`, `evaluate-policy-group-for-device`, `export-policies-to-csv`, `export-policy-group-to-csv`, `export-templates`, `get-policy-groups-summary`, `lookup-dynamic-export`, `lookup-network-export`, `toggle-lock-bulk`, `update-dynamic-policy-group`, `update-network-policy-group`, `update-policy`, `update-policy-group-label`, `update-policy-groups`, `update-policy-groups-with-device-groups`, `update-policy-put`, `update-policy-set`, `update-policy-view`, `update-template`, `validate-subnet-dynamic-policy-group`, `validate-subnet-static-policy-group`, `validate-subnet-static-policy-group-post`
+- **`system`** — `ack-execution-of-task-post`, `create-task`, `register-specs`, `release-execution-of-task`, `update-task`
+- **`topology`** — `batch-create-or-update-multiple-rules`, `bulk-create-site-labels`, `create-cloud-controller`, `create-distribution-zone`, `create-flow-exporter`, `create-global-credentials`, `create-or-update-bulk-target-site`, `create-or-update-multiple-rules`, `create-or-update-target-site`, `create-site-post`, `create-task-list`, `create-ven`, `create-virtual-edge`, `create-virtual-edge-group`, `export-distribution-zones`, `export-site-labels`, `export-virtual-edges`, `get-dashboard-metrics`, `get-virtual-edge-by-post`, `get-virtual-edge-by-post-post`, `metrics`, `metrics-post`, `publish-ve-variables`, `register`, `register-ven`, `set-logger-level`, `set-version`, `topology`, `update-cloud-controller`, `update-distribution-zone`, `update-flow-exporter`, `update-global-credentials`, `update-global-interfaces-settings`, `update-interfaces-settings`, `update-ports-configuration`, `update-site`, `update-task-list`, `update-task-status`, `update-ven`, `update-virtual-edge`, `update-virtual-edge-group`, `update-virtual-edge-put`, `validate-virtual-edge-bulk-delete`, `validate-virtual-edge-bulk-upload`, `validate-virtual-edge-nodes-bulk-update`, `validate-virtual-edge-nodes-bulk-upload`, `virtual-edge-bulk-change-group`, `virtual-edge-bulk-upload`, `virtual-edge-node-bulk-upload`
+
+
+A further 118 operations changed only in their response schema or status codes. Invocation is unaffected, so they are not listed.
+
+### Added commands
+
+192 new commands, grouped by CLI group.
+
+#### `ad` (+16)
+
+- `delete-auth` — Delete Entra authentication and all related data
+- `get-activity-logs` — Query agent activity log
+- `get-connector-deletion-context` — Get connector deletion context
+- `get-dc-bookmark` — Get DC bookmark for specific AD Agent and DC hostname
+- `get-distribution-zone-assignments` — Get distribution zone assignments per connector
+- `get-isolated-distribution-zones` — `GET /api/ad-connector-service/v1/distribution-zones`
+- `get-pull-status` — Get the status of a previously-initiated log pull; on success streams the ZIP bytes
+- `get-syslog-credentials` — Get syslog credentials
+- `pull-logs` — Initiate a log pull from an AD Agent
+- `refresh-all-ad-on-prem` — Refresh all AD on-prem subscriptions
+- `refresh-all-entra` — Refresh all Entra subscriptions
+- `restart` — Restart the connector
+- `save-activity-logs` — Receive activity log events from agent
+- `set-distribution-zones` — Set distribution zones for a connector
+- `update-all-agents-to-latest-version` — Update all AD Agents to latest version
+- `upload-logs` — Upload agent logs
+
+#### `connectors` (+13)
+
+- `add-endpoint` — Add an endpoint to a connector
+- `create-connector` — Create new connector configuration
+- `delete-connector` — Delete connector configuration by ID
+- `delete-endpoint` — Delete an endpoint
+- `get-endpoint` — Get a single endpoint
+- `list-endpoints` — List all endpoints for a connector
+- `read` — Get hierarchical connector status with per-endpoint details
+- `read-all-connectors` — Read all connector configuration entries
+- `read-connector` — Read connector configuration by ID
+- `update-connector` — Update connector configuration by ID
+- `update-endpoint` — Update an endpoint
+- `validate-endpoint-for-connector` — Validate endpoint configuration for existing connector
+- `validate-endpoint-pre-creation` — Validate endpoint configuration before connector creation
+
+#### `devices` (+31)
+
+- `check` — Check ig-view-service sync state against the identity-graph DB (no dispatch)
+- `create-workload` — Create a static workload
+- `devices-aggregate` — Get device aggregate counts
+- `devices-count` — Get device counts
+- `devices-view` — Query devices with CSearch filters
+- `discover-ec2workloads` — Discover EC2 workloads for an existing connector
+- `export-devices-from-view` — Export devices to CSV or XLSX
+- `generate-external-id` — Generate external ID and account ID for IAM role setup
+- `generate-trust-policy` — Generate trust policy JSON for the customer's IAM role
+- `get-all-settings` — Get all offline purge settings grouped by configuration
+- `get-auth-methods` — List available AWS authentication methods
+- `get-device-attribute-values-with-display-names` — Get values with displayNames for an attribute
+- `get-permissions-policy` — Get the IAM permissions policy for ElisityCloudDiscoveryPolicy
+- `get-specification` — Read workload attribute specification
+- `get-workload-aggregate` — Get workload aggregated counts
+- `get-workload-count` — Get workload count
+- `get-workload-details` — Get workload by ID
+- `get-workloads-view` — List workloads
+- `list-available-regions` — List available AWS regions for an endpoint's credentials
+- `list-available-regions-existing` — List available AWS regions for an existing connector endpoint
+- `refresh-devices-view` — Refresh DevicesView
+- `set-feature-flag-ig` — Set value of a feature flag
+- `stream-digest` — Stream device digest
+- `sync` — Synchronize ig-view-service from identity-graph by republishing out-of-sync devices
+- `sync-connector` — Trigger immediate workload sync for all endpoints of a connector
+- `sync-endpoint` — Trigger immediate workload sync for a specific endpoint
+- `update-settings` — Update offline purge settings (global and policy groups)
+- `update-workload` — Update workload STATIC attributes
+- `update-workload-interface` — Update STATIC layer of a workload interface
+- `validate-permissions-existing` — Validate AWS permissions for an existing connector endpoint
+- `validate-permissions-pre-creation` — Validate AWS permissions for a new endpoint (pre-creation)
+
+#### `flows` (+5)
+
+- `get-capabilities` — Get analytics capabilities
+- `get-distribution-zone-sankey` — Get distribution zone sankey data
+- `get-exclusion-filter-candidates` — Get exclusion filter candidate port+protocol pairs ranked by traffic usage
+- `get-heatmap` — `GET /nflowsearch/api/v1/devices/{deviceId}/heatmap`
+- `traffic-record-export` — Export traffic records as CSV
+
+#### `insights` (+1)
+
+- `get-suggestion-match-criteria` — Get Suggestion match criteria for a Policy Group
+
+#### `policy` (+72)
+
+- `add-definition` — `POST /api/flows/v1/applications/{id}/definitions`
+- `bulk-create` — Create several labels atomically (Add Another Label drawer)
+- `bulk-create-post` — Bulk-create access policies (Multi-Create) — best-effort / partial success
+- `bulk-delete` — Bulk delete labels
+- `bulk-impact` — Aggregated impact for several labels (deduplicated devices) — bulk delete dialog
+- `bulk-move` — Move labels to a folder (or to root if targetFolderId is null)
+- `can-disable-nested-policy-groups` — Check if nested policy groups can be disabled
+- `cancel-import` — Cancel an ongoing label import
+- `colors` — Allowed label colours (single source of truth for UI palette + XLSX legend)
+- `create` — Create a new label
+- `create-1` — Create new access policy security profile
+- `create-application` — `POST /api/flows/v1/applications`
+- `create-post` — Create a new folder (max depth 3, name globally unique per type)
+- `create-post-2` — Create an access policy on a policy set
+- `create-vendor` — Create a new Vendor
+- `delete` — Delete a label
+- `delete-1` — Delete an access policy security profile
+- `delete-application` — `DELETE /api/flows/v1/applications/{id}`
+- `delete-delete` — Delete a folder (only if no subfolders)
+- `delete-delete-2` — Delete an access policy
+- `delete-vendor` — Delete a Vendor
+- `download-template` — Download a blank label import template (XLSX)
+- `enable-nested-policy-groups` — Enable/disable nested policy groups
+- `export-csv` — `GET /api/flows/v1/applications/export`
+- `export-policy-group-labels` — Export Policy Group Labels to CSV
+- `get-access-policies` — List access policies on a policy set (the Access Policy column)
+- `get-access-policies-for-profile` — Get access policies using this profile (where used)
+- `get-all` — Get all access policy security profiles
+- `get-application` — `GET /api/flows/v1/applications/{id}`
+- `get-auto-group-tag-value-settings` — Get Group Tag Value settings
+- `get-by-id` — Get a single label by id
+- `get-coverage` — Get Coverage With Info
+- `get-coverage-weight-settings` — Get settings for Coverage Weights
+- `get-current-nested-policy-groups-flag` — Get current nested policy groups flag
+- `get-history-entries` — Search and filter policy history
+- `get-import-status` — Get status of an ongoing or completed label import
+- `get-matching-criteria-inheritance` — Get matching criteria inheritance chain for a policy group
+- `get-matrix` — Get matrix data
+- `get-matrix-with-search` — Get matrix data with search filters
+- `get-matrix-with-search-post` — Get matrix data with search filters
+- `get-policy-group-labels` — Search and filter Policy Group Labels
+- `get-policy-group-tree` — Get policy groups as a flat tree list
+- `get-policy-group-workloads` — Search and filter workloads for a policy group
+- `get-vendor` — Get a vendor
+- `impact` — List devices currently assigned this label (impact analysis before delete)
+- `import-labels` — Bulk import labels from an XLSX or CSV file (max 3 MB, async)
+- `list` — List labels (paged), with optional folder filter and free-text search on name+description
+- `list-applications` — `GET /api/flows/v1/applications`
+- `list-get` — List folders for a type with cumulative label counts (folder + descendants)
+- `list-vendors` — List all Vendors
+- `lookup` — Resolve a batch of label ids to metadata
+- `move` — Move a folder under a different parent
+- `move-policy-group-scope` — Move a root dynamic policy group between Global/Local scope
+- `overwrite-policy` — Overwrite an inherited/reflection Policy cell and re-cascade
+- `preview-operation` — Preview the scope of a matrix operation (create / overwrite / delete) before running it
+- `read-by-id` — Read an access policy security profile by ID
+- `remove-definition` — `DELETE /api/flows/v1/applications/{id}/definitions/{defId}`
+- `rename` — Rename a folder
+- `reorder-siblings` — Reorder a dynamic policy group among its siblings
+- `update` — Update a label color/description (name is immutable in v1)
+- `update-1` — Update an access policy security profile
+- `update-application` — `PUT /api/flows/v1/applications/{id}`
+- `update-auto-group-tag-value-settings` — Save Group Tag Value settings
+- `update-coverage-weight-settings` — Save settings for Coverage Weights
+- `update-definition` — `PUT /api/flows/v1/applications/{id}/definitions/{defId}`
+- `update-put` — Update an access policy
+- `update-vendor` — Update an existing Vendor
+- `validate-application` — `POST /api/flows/v1/applications/validate`
+- `validate-match-criteria` — Validate Match Criteria
+- `validate-match-criteria-for-existing-policy-group` — Validate Match Criteria for existing Policy Group
+- `validate-policy-group-name` — Validate Policy Group Name
+- `validate-policy-group-name-for-existing-policy-group` — Validate Policy Group Name for existing Policy Group
+
+#### `system` (+17)
+
+- `create-snapshot-schedule` — Create snapshot schedule
+- `delete-for-ve` — Remove per-VE override
+- `delete-snapshot-schedule` — Delete snapshot schedule
+- `get-all-configs` — Get all task broker configs
+- `get-effective-config` — Get effective config for a VE
+- `get-spec-by-site-id` — Get specs by site ID
+- `get-spec-group-id` — Get specs by VE group ID
+- `pause-snapshot-schedule` — Pause snapshot schedule
+- `replace-for-ve` — Replace per-VE disabled task types
+- `replace-tenant-default` — Replace tenant-wide disabled task types
+- `resume-snapshot-schedule` — Resume snapshot schedule
+- `retrieve-snapshot` — Get snapshot by ID
+- `retrieve-snapshot-image` — Get snapshot PDF
+- `retrieve-snapshot-schedule` — Get snapshot schedule by ID
+- `search-snapshot-schedules` — Search snapshot schedules
+- `search-snapshots` — Search snapshots
+- `update-snapshot-schedule` — Update snapshot schedule
+
+#### `topology` (+37)
+
+- `bulk-change-ven-group` — Bulk change Virtual Edge Group for multiple VENs
+- `bulk-delete-ve-ns` — Bulk delete Virtual Edge Nodes
+- `bulk-delete-virtual-edges` — Bulk delete Virtual Edges
+- `bulk-force-delete-ve-ns` — Bulk force delete Virtual Edge Nodes
+- `bulk-recommission-ve-ns` — Bulk recommission Virtual Edge Nodes
+- `change-active-ve` — Change Active Virtual Edge for a Virtual Edge Node (VEN)
+- `change-ven-group` — Change Virtual Edge Group for a Virtual Edge Node (VEN)
+- `create-independent-control-mappings` — Create Independent Control Mappings between Distribution Zones
+- `create-site-label-independent-control-mappings` — Create Independent Control Mappings between Site Labels
+- `delete-independent-control-mappings` — Delete Independent Control Mappings
+- `delete-site-label-independent-control-mappings` — Delete Independent Control Mappings for Site Labels
+- `disable-maintenance` — Disable Maintenance mode on a Virtual Edge
+- `disable-maintenance-for-group` — Disable Maintenance mode on a batch of Virtual Edges in a group
+- `enable-maintenance` — Enable Maintenance mode on a Virtual Edge
+- `enable-maintenance-for-group` — Enable Maintenance mode on a batch of Virtual Edges in a group
+- `force-delete-ven` — Force delete a Virtual Edge Node in decommission state
+- `get-configuration` — Get VEN configuration
+- `get-details` — Get VEN details
+- `get-independent-control-mappings` — Get all Independent Control Mappings for Distribution Zones
+- `get-metrics` — Get VEN metrics
+- `get-permissions` — Get VEN permissions
+- `get-reconciled-variables` — Reconciled environment variables for a VE
+- `get-settings` — Get topology settings
+- `get-site-label-independent-control-mappings` — Get all Independent Control Mappings for Site Labels
+- `get-status` — Get VEN status
+- `get-target-site-history` — Retrieves the full history for a specific target type.
+- `get-virtual-edge-nodes-for-distribution-zone` — Get all Virtual Edge Nodes for a Distribution Zone
+- `patch-virtual-edge-group` — Partial-update of a virtual edge group
+- `search-virtual-edge-nodes` — List Virtual Edge Nodes with pagination and sorting
+- `set-logger-levels-bulk` — Set logger levels in bulk
+- `update-settings` — Update topology settings
+- `update-target-site-by-id` — Updates an existing target site entry by ID (for active or future entries).
+- `upload-virtual-edge-nodes-bulk-json` — Bulk upload VEN rows (V2, JSON streaming)
+- `upload-virtual-edges-bulk-json` — Bulk upload VE rows (V2, JSON streaming)
+- `validate-virtual-edge-node-bulk-delete` — Validate Virtual Edge Nodes before bulk delete
+- `validate-virtual-edge-nodes-bulk-json` — Validate VEN rows for bulk upload (V2, JSON streaming)
+- `validate-virtual-edges-bulk-json` — Validate VE rows for bulk upload (V2, JSON streaming)
+
+
 ## Documentation
 
 - [Getting Started](docs/getting-started.md) — First-time setup walkthrough
@@ -259,7 +680,7 @@ review by eye:
 - [AI Agent Operating Guide](docs/AGENTS.md) — How an AI agent should run the CLI on a human's behalf
 - [Glossary Appendix](docs/glossary.md) — UI term → CLI command reference (human-readable)
 - [Configuration Reference](docs/configuration.md) — Profiles, env vars, output formats, JMESPath
-- [Command Reference](docs/command-reference.md) — All 466 commands with descriptions
+- [Command Reference](docs/command-reference.md) — All 613 commands with descriptions
 
 ## License
 
