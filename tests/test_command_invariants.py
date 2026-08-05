@@ -18,6 +18,7 @@ Covered:
 import re
 import subprocess
 import sys
+import warnings
 from pathlib import Path
 
 import pytest
@@ -137,6 +138,128 @@ class TestDeleteGate:
 
         assert result.exit_code == 0
         assert "--confirm" in result.output
+
+
+# --------------------------------------------------------------------------
+# 1b. Parameter-name collisions
+# --------------------------------------------------------------------------
+
+
+def _generate_one(method: str, path: str, params: list, tag: str = "site-controller"):
+    """Generate a single-command module for a synthetic operation."""
+    spec = {"paths": {path: {method: {
+        "tags": [tag], "operationId": "doThing",
+        "parameters": params, "responses": {"200": {}},
+    }}}}
+    groups, _ = build_groups(spec)
+    group_name = next(iter(groups))
+    return generate_module(group_name, groups[group_name])
+
+
+class TestParameterCollisions:
+    """A spec parameter must never collide with an identifier the command owns.
+
+    Every case below produced `def cmd_x(ctx, foo, ..., foo)` — a SyntaxError.
+    _register_groups() catches import errors and only prints a warning, so the
+    whole group (up to 117 commands) would vanish from the CLI silently. On a
+    DELETE that also means losing the --confirm gate.
+    """
+
+    def test_delete_with_a_confirm_query_param_still_compiles_and_stays_gated(self):
+        module = _generate_one("delete", "/api/topology/v2/sites/{id}", [
+            {"name": "id", "in": "path", "required": True, "schema": {"type": "string"}},
+            {"name": "confirm", "in": "query", "schema": {"type": "boolean"}},
+        ])
+        compile(module, "topology.py", "exec")
+
+        assert "Use --confirm to execute this destructive operation." in module
+        assert '@click.option("--confirm/--no-confirm"' in module
+        # The spec parameter is renamed, but still sent under its wire name.
+        assert 'params["confirm"]' in module
+
+    def test_path_and_query_param_sharing_a_name_compiles(self):
+        module = _generate_one("get", "/api/topology/v2/x/{id}", [
+            {"name": "id", "in": "path", "required": True, "schema": {"type": "string"}},
+            {"name": "id", "in": "query", "schema": {"type": "string"}},
+        ])
+        compile(module, "topology.py", "exec")
+        assert 'params["id"]' in module
+
+    def test_params_normalizing_to_the_same_identifier_compile(self):
+        """`foo.bar` and `foo-bar` both sanitize to `foo_bar`."""
+        module = _generate_one("get", "/api/topology/v2/y", [
+            {"name": "foo.bar", "in": "query", "schema": {"type": "string"}},
+            {"name": "foo-bar", "in": "query", "schema": {"type": "string"}},
+        ])
+        compile(module, "topology.py", "exec")
+        assert 'params["foo.bar"]' in module
+        assert 'params["foo-bar"]' in module
+
+    def test_format_and_query_params_are_renamed_but_sent_verbatim(self):
+        """`format`/`query` collide with the CLI's own output overrides."""
+        module = _generate_one("get", "/api/topology/v2/z", [
+            {"name": "format", "in": "query", "schema": {"type": "string"}},
+            {"name": "query", "in": "query", "schema": {"type": "string"}},
+        ])
+        compile(module, "topology.py", "exec")
+
+        assert '"--format-param"' in module
+        assert '"--query-param"' in module
+        assert 'params["format"]' in module
+        assert 'params["query"]' in module
+
+    def test_every_committed_module_compiles(self):
+        """Net that catches any collision class not enumerated above."""
+        for path in sorted(COMMANDS_DIR.glob("*.py")):
+            compile(path.read_text(), str(path), "exec")
+
+    def test_no_command_declares_a_duplicate_flag(self):
+        """The live regression this caught: `flows get-pg-data` declared
+        --format twice, so the required spec param could never be satisfied and
+        the command was impossible to invoke (exit 2, 'Missing option')."""
+        offenders = []
+        for group_name in COMMAND_GROUPS:
+            mod = __import__(f"elisity_cli.commands.{group_name}", fromlist=["group"])
+            for cmd_name, cmd in mod.group.commands.items():
+                seen = set()
+                for param in cmd.params:
+                    for opt in param.opts + param.secondary_opts:
+                        if opt in seen:
+                            offenders.append(f"{group_name} {cmd_name}: {opt}")
+                        seen.add(opt)
+        assert offenders == [], "duplicate option flags: " + ", ".join(offenders)
+
+    def test_loading_every_group_emits_no_click_warnings(self):
+        """Click warns 'parameter used more than once' on a duplicate flag."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            runner = CliRunner()
+            for group_name in COMMAND_GROUPS:
+                runner.invoke(cli, [group_name, "--help"])
+        duplicates = [str(w.message) for w in caught if "more than once" in str(w.message)]
+        assert duplicates == [], f"Click duplicate-parameter warnings: {duplicates}"
+
+    def test_renamed_flag_still_sends_the_spec_parameter_name(self):
+        """End-to-end through Click: --format-param must put `format` on the wire."""
+        captured = {}
+
+        class FakeClient:
+            def post(self, endpoint, data=None, params=None):
+                captured["params"] = params
+                return [{"ok": True}]
+
+        import elisity_cli.context as ctxmod
+        original = ctxmod.CliContext.ensure_client
+        ctxmod.CliContext.ensure_client = lambda self: FakeClient()
+        try:
+            result = CliRunner().invoke(
+                cli, ["flows", "get-pg-data", "--format-param", "csv", "--size", "10"]
+            )
+        finally:
+            ctxmod.CliContext.ensure_client = original
+
+        assert result.exit_code == 0, result.output
+        assert captured["params"] == {"format": "csv", "size": "10"}
 
 
 # --------------------------------------------------------------------------

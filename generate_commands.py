@@ -170,6 +170,72 @@ def python_safe(name: str) -> str:
     return safe
 
 
+# Function-argument names the generated command body owns. A spec parameter that
+# normalizes onto one of these would emit `def cmd_x(ctx, confirm, ..., confirm)`
+# — a SyntaxError, which _register_groups() swallows as a warning, silently
+# dropping the ENTIRE group (up to 117 commands) from the CLI. For a DELETE that
+# also means losing the --confirm gate. See _unique_name().
+RESERVED_DESTS = frozenset({"ctx", "cmd_fmt", "cmd_query", "body_data", "body_file"})
+RESERVED_FLAGS = frozenset({"--format", "-f", "--query", "-q", "--body", "--body-file"})
+DELETE_GUARD_DEST = "confirm"
+DELETE_GUARD_FLAGS = frozenset({"--confirm", "--no-confirm"})
+
+
+def _unique_name(base: str, used: set, suffix: str = "") -> str:
+    """Return `base` if free, else a numbered variant. Records the result.
+
+    Collisions are rare but real: a path param and a query param sharing a name,
+    two query params differing only by a character that normalizes away
+    (`foo.bar` / `foo-bar`), or a spec param named `confirm` on a DELETE.
+    """
+    candidate = f"{base}{suffix}" if base in used and suffix else base
+    counter = 2
+    while candidate in used:
+        candidate = f"{base}{suffix}_{counter}" if suffix else f"{base}_{counter}"
+        counter += 1
+    used.add(candidate)
+    return candidate
+
+
+def resolve_parameter_names(method: str, path_params: list, query_params: list,
+                            has_body: bool) -> tuple:
+    """Assign a collision-free Click flag + Python dest to every parameter.
+
+    The wire name (what goes into the URL path or query string) is never
+    changed — only the Python identifier, and the CLI flag if and only if it
+    would collide with one the command already owns.
+    """
+    used_dests = set(RESERVED_DESTS)
+    used_flags = set(RESERVED_FLAGS)
+    if method.upper() == "DELETE":
+        used_dests.add(DELETE_GUARD_DEST)
+        used_flags |= DELETE_GUARD_FLAGS
+
+    resolved_path = []
+    for pname, ptype, pdesc in path_params:
+        base = python_safe(pname.replace("-", "_")).lower()
+        resolved_path.append({
+            "spec_name": pname,
+            "dest": _unique_name(base, used_dests),
+        })
+
+    resolved_query = []
+    for pname, ptype, preq, pdesc, pdefault in query_params:
+        base = python_safe(pname.replace(".", "_").replace("-", "_"))
+        flag = _unique_name(f"--{pname}", used_flags, suffix="-param")
+        resolved_query.append({
+            "spec_name": pname,
+            "dest": _unique_name(base, used_dests),
+            "flag": flag,
+            "type": ptype,
+            "required": preq,
+            "desc": pdesc,
+            "default": pdefault,
+        })
+
+    return resolved_path, resolved_query
+
+
 def make_command_name(method: str, op_id: str, path: str, tag: str) -> str:
     """Generate a human-friendly command name from operation context."""
     name = sanitize_name(op_id) if op_id else f"{method.lower()}-{sanitize_name(path.split('/')[-1])}"
@@ -222,7 +288,9 @@ def generate_command(method: str, path: str, op: dict, cmd_name: str) -> str:
     summary = raw_summary.split("\n")[0].replace('"', '\\"').replace("\\", "\\\\")[:120]
     func_name = python_safe(cmd_name)
 
-    # Deduplicate — if cmd_name collides, append method
+    # Collision-free Click flags + Python identifiers. Wire names are unchanged.
+    rpath, rquery = resolve_parameter_names(method, path_params, query_params, has_body)
+
     lines = []
 
     # Build decorator chain
@@ -231,22 +299,27 @@ def generate_command(method: str, path: str, op: dict, cmd_name: str) -> str:
     # Path params as Click arguments
     # Click lowercases argument names when passing as kwargs, so we must
     # use lowercase names everywhere to avoid TypeError mismatches.
-    for pname, ptype, pdesc in path_params:
-        safe_pname = python_safe(pname.replace("-", "_")).lower()
-        lines.append(f'@click.argument("{safe_pname}")')
+    for p in rpath:
+        lines.append(f'@click.argument("{p["dest"]}")')
 
     # Query params as Click options
-    for pname, ptype, preq, pdesc, pdefault in query_params:
-        opt_name = python_safe(pname.replace(".", "_").replace("-", "_"))
+    for q in rquery:
         type_map = {"int": "int", "bool": "bool", "str": "str"}
-        click_type = type_map.get(ptype, "str")
+        click_type = type_map.get(q["type"], "str")
+        pdesc, pname = q["desc"], q["spec_name"]
         help_str = pdesc.replace('"', '\\"').replace('\n', ' ').replace('\r', '')[:80] if pdesc else pname
+        if q["flag"] != f"--{pname}":
+            # Flag renamed to avoid colliding with one the command already owns
+            # (e.g. a spec param named `confirm` on a DELETE). The query string
+            # still carries the spec name — say so in the help text.
+            help_str = f"[sends {pname}] {help_str}"[:80]
         # Enforce required=True when OpenAPI spec says required and no default value
-        if preq and pdefault is None:
-            lines.append(f'@click.option("--{pname}", "{opt_name}", type={click_type}, required=True, help="{help_str}")')
+        if q["required"] and q["default"] is None:
+            lines.append(f'@click.option("{q["flag"]}", "{q["dest"]}", type={click_type}, required=True, help="{help_str}")')
         else:
+            pdefault = q["default"]
             default_str = f'"{pdefault}"' if isinstance(pdefault, str) else str(pdefault) if pdefault is not None else "None"
-            lines.append(f'@click.option("--{pname}", "{opt_name}", type={click_type}, default={default_str}, help="{help_str}")')
+            lines.append(f'@click.option("{q["flag"]}", "{q["dest"]}", type={click_type}, default={default_str}, help="{help_str}")')
 
     # Request body as --data JSON option
     if has_body:
@@ -265,11 +338,8 @@ def generate_command(method: str, path: str, op: dict, cmd_name: str) -> str:
 
     # Function signature
     sig_parts = ["ctx"]
-    for pname, ptype, pdesc in path_params:
-        sig_parts.append(python_safe(pname.replace("-", "_")).lower())
-    for pname, ptype, preq, pdesc, pdefault in query_params:
-        safe_qname = python_safe(pname.replace(".", "_").replace("-", "_"))
-        sig_parts.append(safe_qname)
+    sig_parts.extend(p["dest"] for p in rpath)
+    sig_parts.extend(q["dest"] for q in rquery)
     if has_body:
         sig_parts.extend(["body_data", "body_file"])
     sig_parts.extend(["cmd_fmt", "cmd_query"])
@@ -291,18 +361,17 @@ def generate_command(method: str, path: str, op: dict, cmd_name: str) -> str:
 
     # Build the endpoint path with substitutions
     endpoint = path
-    for pname, ptype, pdesc in path_params:
-        safe = python_safe(pname.replace("-", "_")).lower()
-        endpoint = endpoint.replace("{" + pname + "}", f"{{{safe}}}")
+    for p in rpath:
+        endpoint = endpoint.replace("{" + p["spec_name"] + "}", f'{{{p["dest"]}}}')
     lines.append(f'    endpoint = f"{endpoint}"')
 
-    # Build query params dict
-    if query_params:
+    # Build query params dict — keyed by the SPEC name, not the Python dest,
+    # so a renamed identifier still sends the parameter the API expects.
+    if rquery:
         lines.append("    params = {}")
-        for pname, ptype, preq, pdesc, pdefault in query_params:
-            safe_qp = python_safe(pname.replace(".", "_").replace("-", "_"))
-            lines.append(f'    if {safe_qp} is not None:')
-            lines.append(f'        params["{pname}"] = {safe_qp}')
+        for q in rquery:
+            lines.append(f'    if {q["dest"]} is not None:')
+            lines.append(f'        params["{q["spec_name"]}"] = {q["dest"]}')
     else:
         lines.append("    params = None")
 

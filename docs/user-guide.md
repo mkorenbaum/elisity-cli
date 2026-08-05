@@ -1695,8 +1695,12 @@ elisity flows get-raw-traffic-summary --body '{
   "interval": {"from": "now-15m", "to": "now"}
 }'
 
-# Per-policy-group breakdown
-elisity flows get-pg-data --body '{
+# Per-policy-group breakdown (--format-param and --size are both required)
+# NOTE: the spec names this query parameter `format`, which collides with the
+# CLI's own `-f/--format` output selector, so it is exposed as `--format-param`.
+# The request still sends `format=` on the wire. Same for `--query-param` on
+# `search-noise-definitions`.
+elisity flows get-pg-data --format-param json --size 100 --body '{
   "interval": {"from": "now-1h", "to": "now"}
 }'
 

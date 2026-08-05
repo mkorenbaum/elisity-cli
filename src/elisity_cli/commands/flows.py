@@ -83,7 +83,7 @@ def cmd_get_traffic_record(ctx, offset, size, body_data, body_file, cmd_fmt, cmd
     render(result, ctx.format, ctx.query)
 
 @group.command("get-pg-data")
-@click.option("--format", "format", type=str, required=True, help="format")
+@click.option("--format-param", "format", type=str, required=True, help="[sends format] format")
 @click.option("--size", "size", type=str, required=True, help="size")
 @click.option("--body", "body_data", type=str, default=None, help="Request body as JSON string")
 @click.option("--body-file", "body_file", type=click.Path(exists=True), default=None, help="Read request body from JSON file")
@@ -307,7 +307,7 @@ def cmd_get_available_ports(ctx, search, page, size, cmd_fmt, cmd_query):
     render(result, ctx.format, ctx.query)
 
 @group.command("search-noise-definitions")
-@click.option("--query", "query", type=str, default=None, help="query")
+@click.option("--query-param", "query", type=str, default=None, help="[sends query] query")
 @click.option("--format", "-f", "cmd_fmt", type=click.Choice(["json", "table", "yaml", "csv"]), default=None, help="Output format override", hidden=True)
 @click.option("--query", "-q", "cmd_query", type=str, default=None, help="JMESPath query override", hidden=True)
 @pass_context
