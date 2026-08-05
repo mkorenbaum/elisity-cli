@@ -2,7 +2,7 @@
 
 [![tests](https://github.com/mkorenbaum/elisity-cli/actions/workflows/test.yml/badge.svg)](https://github.com/mkorenbaum/elisity-cli/actions/workflows/test.yml)
 
-Command-line interface to the Elisity Cloud Control Center (CCC) API. Provides complete coverage of the CCC API surface — all 436 REST endpoints from the OpenAPI spec, plus 19 hand-coded GraphQL commands for the `/api/reporting/v1/data` endpoint (Zero Trust scores, threat vectors, per-site KPIs, traffic vectors) that the OpenAPI spec doesn't include, plus a 3-command CLI-native `glossary` group that maps Elisity UI terminology to CLI commands.
+Command-line interface to the Elisity Cloud Control Center (CCC) API. Provides complete coverage of the CCC API surface — all 436 REST endpoints from the OpenAPI spec, plus 20 hand-coded GraphQL commands for the `/api/reporting/v1/data` endpoint (Zero Trust scores, threat vectors, per-site KPIs, traffic vectors) that the OpenAPI spec doesn't include, plus a 3-command CLI-native `glossary` group that maps Elisity UI terminology to CLI commands.
 
 > **For AI agents:** see [docs/AGENTS.md](docs/AGENTS.md) for a UI-term → CLI-command operating guide. The `elisity glossary` group is the runtime lookup surface.
 
@@ -106,7 +106,7 @@ curl -H "Authorization: Bearer $TOKEN" https://your-ccc.idp01.elisity.io/api/top
 | `insights` | 30 | Policy suggestions, dynamic/network group recommendations |
 | `flows` | 18 | Traffic flow search, device state, noise definitions |
 | `system` | 12 | Tasks, specs, state sync |
-| `reporting` | 19 | **GraphQL** — Zero Trust scores, site KPIs, threat vectors, traffic-by-PG/IP. Hand-coded (the CCC reporting API is GraphQL, not in OpenAPI). |
+| `reporting` | 20 | **GraphQL** — Zero Trust scores, site KPIs, threat vectors, traffic-by-PG/IP. Hand-coded (the CCC reporting API is GraphQL, not in OpenAPI). |
 | `glossary` | 3 | Map Elisity UI terminology to CLI commands |
 | `auth` | 3 | Test connection, get token, decode JWT |
 | `config` | 4 | Profile management, configuration display |
@@ -200,6 +200,57 @@ pytest
 # Run QA validation against a live CCC
 python3 tests/qa_comprehensive.py
 ```
+
+### Regenerating commands from a new CCC OpenAPI spec
+
+The API-backed groups are generated from the CCC OpenAPI specification, pulled from a
+live tenant at `GET /v3/api-docs`. The current command set was generated from the CCC
+26.3-era spec (`info.version` 1.0.0, 329 paths / 436 operations, captured 2026-06-21).
+
+**Always diff before you regenerate.** The diff is what makes a version bump reviewable:
+
+```bash
+# 1. What changed between the two specs?
+python3 tools/spec_diff.py old-api-docs.json new-api-docs.json
+
+# Machine-readable form, and a mode that fails when a new tag has no group mapping
+python3 tools/spec_diff.py old-api-docs.json new-api-docs.json --json > diff.json
+python3 tools/spec_diff.py old-api-docs.json new-api-docs.json --strict
+```
+
+`spec_diff.py` reports added, removed and changed operations — including parameter
+type/required changes, request-body and response schema changes (resolved through
+`$ref`, so a change *inside* a referenced schema is visible), and the CLI command each
+operation becomes. New tags with no `TAG_TO_GROUP` entry are surfaced separately: they
+fall back to a path-prefix guess and need an explicit mapping decision.
+
+```bash
+# 2. Map any new tags in TAG_TO_GROUP (generate_commands.py), then regenerate.
+python3 generate_commands.py --spec new-api-docs.json
+
+# The spec path resolves as: --spec > $ELISITY_API_SPEC > the historical host path
+ELISITY_API_SPEC=new-api-docs.json python3 generate_commands.py
+
+# 3. Confirm counts, the delete gate, and the docs all still agree.
+python3 tools/audit_counts.py
+pytest
+```
+
+`audit_counts.py` walks the source tree and emits the authoritative numbers — total,
+per group, generated vs hand-coded, delete commands and `--confirm` coverage. It exits
+non-zero when `README.md` or `docs/command-reference.md` disagree with the source, so
+documentation drift fails CI instead of accumulating. It is also enforced from the test
+suite (`tests/test_command_invariants.py`).
+
+Two invariants are enforced mechanically because a bulk regeneration is too large to
+review by eye:
+
+- **Delete gate** — every command issuing `client.delete()` requires `--confirm`.
+  Coverage is asserted at 100%; a regression names the offending commands.
+- **Hand-coded survival** — the `reporting` (GraphQL) and `glossary` (CLI-native) groups
+  are not in the OpenAPI spec. Regeneration never rewrites their modules and always
+  keeps them registered in `COMMAND_GROUPS`; the generator aborts if a spec tag is ever
+  mapped onto one of them.
 
 ## Documentation
 
